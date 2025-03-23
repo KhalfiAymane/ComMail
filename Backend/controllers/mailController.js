@@ -189,3 +189,38 @@ exports.updateMailStatus = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+// Add this to mailController.js
+exports.updateMail = async (req, res) => {
+  try {
+    const mail = await Mail.findById(req.params.id);
+    if (!mail) return res.status(404).json({ error: 'Courrier introuvable' });
+
+    // Check if user has permission (sender or receiver department match)
+    const isSender = mail.sender.toString() === req.user.userId;
+    const isReceiver = mail.receiverDepartments.includes(req.user.department);
+    if (!isSender && !isReceiver && !['admin', 'dgs'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Action non autorisée' });
+    }
+
+    // Update only allowed fields (e.g., favorite, isRead)
+    const updates = {};
+    if (typeof req.body.favorite !== 'undefined') updates.favorite = req.body.favorite;
+    if (typeof req.body.isRead !== 'undefined') updates.isRead = req.body.isRead;
+
+    const updatedMail = await Mail.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true }
+    ).populate('sender', 'email department role');
+
+    if (!updatedMail) return res.status(404).json({ error: 'Courrier introuvable' });
+
+    res.json(updatedMail);
+  } catch (err) {
+    console.error('Error in updateMail:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+

@@ -197,14 +197,12 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
   
   const handleUnarchive = (id) => {
     setCourriers(prev => prev.filter(c => c.id !== id));
-    // In a real app, you would also move the item back to its original location
   };
   
   const handleBulkUnarchive = () => {
     setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
     setSelectedCourriers([]);
     setSelectAll(false);
-    // In a real app, you would also move the items back to their original locations
   };
   
   const handleDelete = (id) => {
@@ -263,6 +261,8 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
   const personalCount = courriers.filter(c => c.personal).length;
   const centralizedCount = courriers.filter(c => !c.personal).length;
   const favoriteCount = courriers.filter(c => c.favorite).length;
+  const personalFavorites = courriers.filter(c => c.personal && c.favorite).length;
+  const personalHighPriority = courriers.filter(c => c.personal && c.priority === 'high').length;
   
   // Animation variants
   const listItemVariants = {
@@ -850,115 +850,207 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
       
       {/* Analytics summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-        <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-medium ${textColor}`}>Distribution des archives</h3>
-            <FileText size={18} className={subTextColor} />
-          </div>
-          <div className="space-y-3">
-            {['RH', 'Finance', 'Technique', 'Urbanisme', 'Communication', 'DG', 'Sécurité'].map(dept => {
-              const count = courriers.filter(c => c.department === dept).length;
-              const percentage = Math.round((count / courriers.length) * 100) || 0;
-              return (
-                <div key={dept} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className={`${textColor} flex items-center gap-1`}>
-                      <span className={`w-3 h-3 rounded-full ${getDepartmentColor(dept)}`}></span>
-                      {dept}
-                    </span>
-                    <span className={subTextColor}>{count} ({percentage}%)</span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200/20 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${getDepartmentColor(dept)}`}
-                      style={{ width: `${percentage}%` }}
-                    ></div>
+        {isPersonalView ? (
+          <>
+            {/* Personalized View Cards */}
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Vos archives</h3>
+                <FileText size={18} className={subTextColor} />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Total personnel</span>
+                  <span className={`text-sm font-medium ${textColor}`}>{personalCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Archivés par vous</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => c.personal && c.archivedBy === 'Vous').length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Archivés par d'autres</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => c.personal && c.archivedBy !== 'Vous').length}
+                  </span>
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-gray-100/10 border ${borderColor}">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-full ${accentBg} bg-opacity-20`}>
+                      <Archive size={14} className={accentColor} />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-medium ${textColor}`}>Exporter vos archives</h4>
+                      <p className={`text-xs ${subTextColor}`}>PDF ou CSV</p>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-        
-        <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-medium ${textColor}`}>Archives par priorité</h3>
-            <AlertCircle size={18} className={subTextColor} />
-          </div>
-          
-          <div className="flex items-center justify-center h-40">
-            <div className="relative w-32 h-32">
-              {/* This would be a pie chart in a real application */}
-              <div className="absolute inset-0 rounded-full border-8 border-r-red-500 border-b-orange-500 border-l-green-500 border-t-gray-200/20 rotate-45"></div>
-              <div className="absolute inset-8 bg-[#1F2024] rounded-full flex items-center justify-center">
-                <span className={`text-sm font-medium ${textColor}`}>{courriers.length}</span>
               </div>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-2 mt-4">
-            {['high', 'medium', 'low'].map(priority => {
-              const count = courriers.filter(c => c.priority === priority).length;
-              return (
-                <div key={priority} className="text-center">
-                  <div className={`w-3 h-3 rounded-full mx-auto ${
-                    priority === 'high' ? 'bg-red-500' : 
-                    priority === 'medium' ? 'bg-orange-500' : 
-                    'bg-green-500'
-                  }`}></div>
-                  <div className={`text-xs font-medium mt-1 ${textColor}`}>
-                    {getPriorityLabel(priority)}
-                  </div>
-                  <div className={`text-xs ${subTextColor}`}>
-                    {count} ({Math.round((count / courriers.length) * 100)}%)
+
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Vos favoris</h3>
+                <Star size={18} className={subTextColor} />
+              </div>
+              <div className="flex items-center justify-center h-40">
+                <div className="relative w-32 h-32">
+                  <div className="absolute inset-0 rounded-full border-8 border-r-yellow-500 border-b-gray-200/20 border-l-gray-200/20 border-t-gray-200/20 rotate-45"></div>
+                  <div className="absolute inset-8 bg-[#1F2024] rounded-full flex items-center justify-center">
+                    <span className={`text-sm font-medium ${textColor}`}>{personalFavorites}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-        
-        <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`font-medium ${textColor}`}>Activité d'archivage</h3>
-            <Clock size={18} className={subTextColor} />
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${textColor}`}>Cette semaine</span>
-              <span className={`text-sm font-medium ${textColor}`}>3</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${textColor}`}>Ce mois</span>
-              <span className={`text-sm font-medium ${textColor}`}>12</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${textColor}`}>Archives personnelles</span>
-              <span className={`text-sm font-medium ${textColor}`}>{personalCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${textColor}`}>Archives centralisées</span>
-              <span className={`text-sm font-medium ${textColor}`}>{centralizedCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${textColor}`}>Favoris</span>
-              <span className={`text-sm font-medium ${textColor}`}>{favoriteCount}</span>
-            </div>
-          </div>
-          
-          <div className={`mt-4 p-3 rounded-lg bg-gray-100/10 ${borderColor} border`}>
-            <div className="flex items-center gap-2">
-              <div className={`p-2 rounded-full ${accentBg} bg-opacity-20`}>
-                <Download size={14} className={accentColor} />
               </div>
-              <div>
-                <h4 className={`text-sm font-medium ${textColor}`}>Exporter les archives</h4>
-                <p className={`text-xs ${subTextColor}`}>Format PDF, Excel ou CSV</p>
+              <div className="text-center mt-4">
+                <div className={`text-sm ${textColor}`}>
+                  {personalFavorites} favori{personalFavorites !== 1 ? 's' : ''} personnel{personalFavorites !== 1 ? 's' : ''}
+                </div>
+                <div className={`text-xs ${subTextColor}`}>
+                  {Math.round((personalFavorites / personalCount) * 100) || 0}% de vos archives
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Votre activité récente</h3>
+                <Clock size={18} className={subTextColor} />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Cette semaine</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => c.personal && c.dateArchived.includes('Mars')).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Ce mois</span>
+                  <span className={`text-sm font-medium ${textColor}`}>{personalCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Priorité haute</span>
+                  <span className={`text-sm font-medium ${textColor}`}>{personalHighPriority}</span>
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-gray-100/10 border ${borderColor}">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-full ${accentBg} bg-opacity-20`}>
+                      <Clock size={14} className={accentColor} />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-medium ${textColor}`}>Activité détaillée</h4>
+                      <p className={`text-xs ${subTextColor}`}>Voir le journal</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Centralized View Cards */}
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Distribution des départements</h3>
+                <FileText size={18} className={subTextColor} />
+              </div>
+              <div className="space-y-3">
+                {['RH', 'Finance', 'Technique', 'Urbanisme', 'Communication', 'DG', 'Sécurité'].map(dept => {
+                  const count = courriers.filter(c => c.department === dept).length;
+                  const percentage = Math.round((count / courriers.length) * 100) || 0;
+                  return (
+                    <div key={dept} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className={`${textColor} flex items-center gap-1`}>
+                          <span className={`w-3 h-3 rounded-full ${getDepartmentColor(dept)}`}></span>
+                          {dept}
+                        </span>
+                        <span className={subTextColor}>{count} ({percentage}%)</span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200/20 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${getDepartmentColor(dept)}`}
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Répartition par priorité</h3>
+                <AlertCircle size={18} className={subTextColor} />
+              </div>
+              <div className="flex items-center justify-center h-40">
+                <div className="relative w-32 h-32">
+                  <div className="absolute inset-0 rounded-full border-8 border-r-red-500 border-b-orange-500 border-l-green-500 border-t-gray-200/20 rotate-45"></div>
+                  <div className="absolute inset-8 bg-[#1F2024] rounded-full flex items-center justify-center">
+                    <span className={`text-sm font-medium ${textColor}`}>{courriers.length}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {['high', 'medium', 'low'].map(priority => {
+                  const count = courriers.filter(c => c.priority === priority).length;
+                  return (
+                    <div key={priority} className="text-center">
+                      <div className={`w-3 h-3 rounded-full mx-auto ${
+                        priority === 'high' ? 'bg-red-500' : 
+                        priority === 'medium' ? 'bg-orange-500' : 
+                        'bg-green-500'
+                      }`}></div>
+                      <div className={`text-xs font-medium mt-1 ${textColor}`}>
+                        {getPriorityLabel(priority)}
+                      </div>
+                      <div className={`text-xs ${subTextColor}`}>
+                        {count} ({Math.round((count / courriers.length) * 100)}%)
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`font-medium ${textColor}`}>Activité globale</h3>
+                <Clock size={18} className={subTextColor} />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Cette semaine</span>
+                  <span className={`text-sm font-medium ${textColor}`}>3</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Ce mois</span>
+                  <span className={`text-sm font-medium ${textColor}`}>12</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Archives personnelles</span>
+                  <span className={`text-sm font-medium ${textColor}`}>{personalCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${textColor}`}>Archives centralisées</span>
+                  <span className={`text-sm font-medium ${textColor}`}>{centralizedCount}</span>
+                </div>
+                <div className="mt-4 p-3 rounded-lg bg-gray-100/10 ${borderColor} border">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-full ${accentBg} bg-opacity-20`}>
+                      <Download size={14} className={accentColor} />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-medium ${textColor}`}>Exporter tout</h4>
+                      <p className={`text-xs ${subTextColor}`}>Format PDF, Excel ou CSV</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

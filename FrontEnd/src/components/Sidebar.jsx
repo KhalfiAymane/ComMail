@@ -15,17 +15,24 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
     if (token) {
       try {
         const decoded = jwtDecode(token);
+        console.log('Decoded User:', decoded); // Debug: Log decoded user data
         setUser(decoded);
       } catch (error) {
         console.error('Error decoding token:', error);
       }
+    } else {
+      console.warn('No token found in localStorage');
     }
   }, []);
 
   const getSidebarItems = () => {
-    if (!user) return [];
+    if (!user) {
+      console.log('User is null, returning empty sidebar items');
+      return [];
+    }
 
     const departmentSlug = user.department?.toLowerCase().replace(/\s/g, '-') || 'unknown';
+    console.log('Department Slug:', departmentSlug); // Debug: Log the slug
 
     if (user.role === 'admin') {
       return [
@@ -50,31 +57,33 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   };
 
   const sidebarItems = getSidebarItems();
-
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    const currentPath = location.pathname;
+    const currentPath = location.pathname.replace(/\/$/, ''); // Normalize by removing trailing slash
     console.log('Current Path:', currentPath); // Debug: Log current path
-    console.log('Sidebar Items:', sidebarItems); // Debug: Log all items
+    console.log('Sidebar Items:', sidebarItems.map(item => ({ label: item.label, link: item.link }))); // Debug: Log sidebar items
 
-    // Find the best matching item
-    let bestMatchIndex = 0;
-    let longestMatchLength = 0;
-
-    sidebarItems.forEach((item, index) => {
-      const itemPath = item.link;
-      console.log(`Checking: ${itemPath} against ${currentPath}`); // Debug: Log comparison
-
-      // Check if currentPath starts with item.link and is a better match (longer match)
-      if (currentPath.startsWith(itemPath) && itemPath.length > longestMatchLength) {
-        longestMatchLength = itemPath.length;
-        bestMatchIndex = index;
-      }
+    // Step 1: Look for an exact match
+    let matchedIndex = sidebarItems.findIndex(item => {
+      const itemLink = item.link.replace(/\/$/, '');
+      return currentPath === itemLink;
     });
 
-    console.log('Best Match Index:', bestMatchIndex); // Debug: Log selected index
-    setActiveIndex(bestMatchIndex);
+    // Step 2: If no exact match, look for the closest sub-route match
+    if (matchedIndex === -1) {
+      matchedIndex = sidebarItems.findIndex(item => {
+        const itemLink = item.link.replace(/\/$/, '');
+        // Ensure it's a sub-route and not just the base dashboard path
+        return currentPath.startsWith(itemLink) && currentPath !== itemLink && itemLink.includes('/dashboard/');
+      });
+    }
+
+    // Step 3: Default to 0 if no match found
+    const newActiveIndex = matchedIndex !== -1 ? matchedIndex : 0;
+    console.log('Exact Match Index:', matchedIndex !== -1 ? matchedIndex : 'None');
+    console.log('Selected Active Index:', newActiveIndex, 'Label:', sidebarItems[newActiveIndex]?.label); // Debug: Log final index
+    setActiveIndex(newActiveIndex);
   }, [location.pathname, sidebarItems]);
 
   return (

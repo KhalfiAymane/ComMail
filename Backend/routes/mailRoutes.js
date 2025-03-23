@@ -8,7 +8,8 @@ const {
   createMail,
   getAllMails,
   validateMail,
-  updateMailStatus
+  updateMailStatus,
+  updateMail
 } = require('../controllers/mailController');
 
 router.get('/mails-and-counts', auth, async (req, res) => {
@@ -160,12 +161,12 @@ router.patch(
 
 // Update mail status or section (PUT route for validate/reject/archive)
 router.put(
-  '/:id',
+  '/:id/status',
   auth,
   checkRole(['directeur', 'admin', 'president', 'dgs']),
   updateMailStatus
 );
-
+router.put('/:id', auth, updateMail);
 // Delete a mail
 router.delete('/:id', auth, async (req, res) => {
   try {

@@ -43,6 +43,7 @@ const mailSchema = new mongoose.Schema({
       'Administration'
     ]
   }],
+  
   attachments: [{ type: String }],
   status: {
     type: String,
@@ -64,6 +65,7 @@ const mailSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  favorite: { type: Boolean, default: false },
   createdAt: {
     type: Date,
     default: Date.now

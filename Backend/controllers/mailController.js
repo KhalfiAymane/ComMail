@@ -41,64 +41,42 @@ const getAllowedReceiverDepartments = (role) => {
 };
 
 exports.createMail = async (req, res) => {
-  console.log('Received createMail request:', {
-    body: req.body,
-    files: req.files,
-    user: req.user
-  });
-
   try {
-    const allowedRoles = ['admin', 'bo', 'dgs', 'president', 'sc', 'sp', 'rh', 'dfm', 'dt', 'bh', 'pc', 'ic'];
-    if (!req.user.role || !allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Permission refusée' });
-    }
+    const { type, subject, content, receiverDepartments } = req.body;
+    const sender = req.user.userId;
 
-    if (!req.user.userId) {
-      console.error('req.user.userId is undefined. Check JWT token or auth middleware.');
-      return res.status(500).json({ error: 'Utilisateur non identifié. Vérifiez votre connexion.' });
-    }
-
-    let receiverDepartments = req.body.receiverDepartments;
-    if (typeof receiverDepartments === 'string') {
-      receiverDepartments = JSON.parse(receiverDepartments);
-    }
-    const departments = Array.isArray(receiverDepartments) ? receiverDepartments : [receiverDepartments].filter(Boolean);
-
-    if (departments.length === 0) {
-      return res.status(400).json({ error: 'At least one receiver department must be specified' });
-    }
-
-    // Validate receiver departments against sender role
-    const allowedDepartments = getAllowedReceiverDepartments(req.user.role);
-    const invalidDepartments = departments.filter(dept => !allowedDepartments.includes(dept));
-    if (invalidDepartments.length > 0) {
-      return res.status(403).json({ 
-        error: `You are not allowed to send to: ${invalidDepartments.join(', ')}` 
-      });
-    }
+    const parsedReceiverDepartments = JSON.parse(receiverDepartments || '[]');
+    // No normalization needed since NewCourrierModal now uses curly quotes
 
     const mail = new Mail({
-      type: req.body.type || 'officiel',
-      subject: req.body.subject,
-      content: req.body.content,
-      sender: req.user.userId,
-      receiverDepartments: departments,
-      attachments: req.files?.map(file => file.path) || [],
-      section: departments.length > 0 ? 'sent' : 'drafts',
-      isRead: false,
-      status: req.user.role === 'admin' ? 'validé' : 'en_attente'
+      type: type || 'officiel',
+      subject,
+      content,
+      sender,
+      receiverDepartments: parsedReceiverDepartments, // Should be ["Bureau d’Ordre"]
+      attachments: [],
+      status: 'en_attente',
+      section: 'inbox',
+      history: [{ action: 'created', user: sender, timestamp: new Date() }],
     });
 
-    const savedMail = await mail.save();
-    const populatedMail = await Mail.findById(savedMail._id)
-      .populate('sender', 'email department role')
-      .lean();
-    
+    if (req.files) {
+      mail.attachments = req.files.map(file => ({
+        filename: file.filename,
+        path: file.path,
+        size: file.size,
+        mimetype: file.mimetype,
+      }));
+    }
+
+    await mail.save();
+    const populatedMail = await Mail.findById(mail._id)
+      .populate('sender', 'email department role');
     console.log('Mail saved successfully:', populatedMail);
     res.status(201).json(populatedMail);
   } catch (err) {
     console.error('Error in createMail:', err);
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -107,6 +85,7 @@ exports.getAllMails = async (req, res) => {
     const filter = {};
     const userId = req.user.userId;
     const userDepartment = req.user.department;
+    const userRole = req.user.role;
 
     if (req.query.type) filter.type = { $in: req.query.type.split(',') };
     if (req.query.status) filter.status = { $in: req.query.status.split(',') };
@@ -116,26 +95,24 @@ exports.getAllMails = async (req, res) => {
     if (req.query.section === 'sent') {
       filter.sender = userId;
     } else if (req.query.section === 'inbox') {
-      filter.receiverDepartments = userDepartment; // Only departments now
+      filter.receiverDepartments = userDepartment;
     } else if (req.query.section === 'drafts') {
       filter.sender = userId;
       filter.status = 'en_attente';
     } else if (req.query.section === 'archives') {
-      filter.$or = [
-        { sender: userId },
-        { receiverDepartments: userDepartment }
-      ];
-      filter.status = { $in: ['validé', 'rejeté'] };
+      if (['admin', 'dgs'].includes(userRole)) {
+        filter.section = 'archives'; // Centralized view for admin/dgs
+      } else {
+        filter.$or = [
+          { sender: userId },
+          { receiverDepartments: userDepartment }
+        ];
+        filter.section = 'archives';
+      }
     }
 
-    if (!['admin', 'president', 'dgs'].includes(req.user.role)) {
-      const baseFilter = filter.$or || [];
-      filter.$or = [
-        ...baseFilter,
-        { sender: userId },
-        { receiverDepartments: userDepartment }
-      ];
-    }
+    // Remove restrictive role-based filter for non-privileged roles
+    console.log('Fetching mails with filter:', filter, 'for user:', { userId, userDepartment, userRole });
 
     const mails = await Mail.find(filter)
       .populate('sender', 'email department role')
@@ -166,9 +143,12 @@ exports.updateMailStatus = async (req, res) => {
     const mail = await Mail.findById(req.params.id);
     if (!mail) return res.status(404).json({ error: 'Courrier introuvable' });
 
-    const isDirector = req.user.role === 'dgs' && mail.receiverDepartments.includes(req.user.department);
-    const isAdmin = req.user.role === 'admin';
-    if (!isDirector && !isAdmin) return res.status(403).json({ error: 'Action non autorisée' });
+    const isSender = mail.sender.toString() === req.user.userId;
+    const isReceiver = mail.receiverDepartments.includes(req.user.department);
+
+    if (!isSender && !isReceiver) {
+      return res.status(403).json({ error: 'Action non autorisée' });
+    }
 
     const { status, section, rejectionReason } = req.body;
     if (status) mail.status = status;
@@ -181,15 +161,19 @@ exports.updateMailStatus = async (req, res) => {
       timestamp: new Date()
     });
 
+    if (section === 'archives') {
+      mail.archivedBy = req.user.userId;
+    }
+
     await mail.save();
     const populatedMail = await Mail.findById(mail._id)
       .populate('sender', 'email department role');
     res.json(populatedMail);
   } catch (err) {
+    console.error('Error in updateMailStatus:', err);
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // Add this to mailController.js
 exports.updateMail = async (req, res) => {

@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin', 'president', 'dgs', 'directeur'], // Keep enum for role, but make it optional
+    enum: ['user', 'admin', 'president', 'dgs', 'bo', 'sc', 'sp', 'rh', 'dfm', 'dt', 'bh', 'pc', 'ic'],
     default: 'user', // Default to 'user' if not provided
   },
   permissions: [{

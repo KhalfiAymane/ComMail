@@ -13,13 +13,13 @@ const API_URL = 'http://localhost:5000/api';
 const allDepartments = [
   { value: 'Présidence', label: 'Présidence' },
   { value: 'Direction Générale des Services', label: 'Direction Générale des Services' },
-  { value: 'Bureau d\'Ordre', label: 'Bureau d\'Ordre' },
+  { value: 'Bureau d’Ordre', label: 'Bureau d’Ordre' }, // Curly quotes
   { value: 'Secrétariat du Conseil', label: 'Secrétariat du Conseil' },
   { value: 'Secrétariat du Président', label: 'Secrétariat du Président' },
   { value: 'Ressources Humaines', label: 'Ressources Humaines' },
   { value: 'Division Financière', label: 'Division Financière' },
   { value: 'Division Technique', label: 'Division Technique' },
-  { value: 'Bureau d\'Hygiène', label: 'Bureau d\'Hygiène' },
+  { value: 'Bureau d’Hygiène', label: 'Bureau d’Hygiène' }, // Curly quotes
   { value: 'Partenariat et Coopération', label: 'Partenariat et Coopération' },
   { value: 'Informatique et Communication', label: 'Informatique et Communication' },
   { value: 'Administration', label: 'Administration' }
@@ -42,7 +42,7 @@ const getAllowedDepartments = (role) => {
     case 'pc':
     case 'ic':
       return allDepartments.filter(d => 
-        d.value === 'Bureau d\'Ordre' || d.value === 'Direction Générale des Services'
+        d.value === 'Bureau d’Ordre' || d.value === 'Direction Générale des Services'
       );
     default:
       console.warn(`Unknown role: ${role}, defaulting to no permissions`);
@@ -67,14 +67,43 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
     content: '',
     receiverDepartments: [],
     attachments: [],
-    senderRole: initialData?.senderRole || 'dgs',
-    senderDepartment: initialData?.senderDepartment || ''
+    senderRole: '',
+    senderDepartment: ''
   });
   const [showPreview, setShowPreview] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [senderRole, setSenderRole] = useState('');
+  const [senderDepartment, setSenderDepartment] = useState('');
 
-  const senderRole = initialData?.senderRole || 'dgs';
+  // Fetch user role and department on mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No token found');
+        return;
+      }
+
+      try {
+        const response = await axios.get('http://localhost:5000/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setSenderRole(response.data.role);
+        setSenderDepartment(response.data.department);
+        setFormData(prev => ({
+          ...prev,
+          senderRole: response.data.role,
+          senderDepartment: response.data.department
+        }));
+      } catch (err) {
+        console.error('Error fetching user data:', err.response?.data || err.message);
+        setErrors({ fetch: 'Erreur lors du chargement des données utilisateur' });
+      }
+    };
+    fetchUserData();
+  }, []);
+
   const departments = getAllowedDepartments(senderRole);
 
   useEffect(() => {
@@ -102,8 +131,8 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
           content: initialData.content || '',
           receiverDepartments: initialData.receiverDepartments || [],
           attachments: initialData.attachments || [],
-          senderRole: initialData.senderRole || 'dgs',
-          senderDepartment: initialData.senderDepartment || ''
+          senderRole: initialData.senderRole || senderRole,
+          senderDepartment: initialData.senderDepartment || senderDepartment
         });
       } else {
         resetForm();
@@ -113,7 +142,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
       document.body.style.overflow = 'auto';
     }
     return () => { document.body.style.overflow = 'auto'; };
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, senderRole, senderDepartment]);
 
   const resetForm = () => {
     setFormData({
@@ -122,8 +151,8 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
       content: '',
       receiverDepartments: [],
       attachments: [],
-      senderRole: initialData?.senderRole || 'dgs',
-      senderDepartment: initialData?.senderDepartment || ''
+      senderRole: senderRole || 'dgs',
+      senderDepartment: senderDepartment || ''
     });
     setErrors({});
     setShowPreview(false);
@@ -180,10 +209,10 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
-    if (!formData.content.trim()) newErrors.content = 'Content is required';
+    if (!formData.subject.trim()) newErrors.subject = 'Le sujet est requis';
+    if (!formData.content.trim()) newErrors.content = 'Le contenu est requis';
     if (formData.receiverDepartments.length === 0) {
-      newErrors.receiver = 'Select at least one department';
+      newErrors.receiver = 'Sélectionnez au moins un département';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -215,7 +244,8 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
       setSubmitting(false);
       onClose(response.data);
     } catch (err) {
-      setErrors({ submit: err.response?.data?.error || 'Failed to send courrier - Network Error' });
+      console.error('Error submitting courrier:', err.response?.data || err.message);
+      setErrors({ submit: err.response?.data?.error || 'Échec de l’envoi du courrier - Erreur réseau' });
       setSubmitting(false);
     }
   };
@@ -260,7 +290,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                 <div className="bg-white/20 w-10 h-10 rounded-lg flex items-center justify-center">
                   <FaEnvelope className="text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-white">New Courrier</h2>
+                <h2 className="text-xl font-bold text-white">Nouveau Courrier</h2>
               </div>
               <button 
                 onClick={() => onClose(null)}
@@ -275,13 +305,13 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                   onClick={() => setShowPreview(false)}
                   className={`px-4 py-2 rounded-md ${!showPreview ? 'bg-white dark:bg-[#1F2024] text-[#A78800] shadow-md' : `${subTextColor}`}`}
                 >
-                  Form
+                  Formulaire
                 </button>
                 <button
                   onClick={() => setShowPreview(true)}
                   className={`px-4 py-2 rounded-md ${showPreview ? 'bg-white dark:bg-[#1F2024] text-[#A78800] shadow-md' : `${subTextColor}`}`}
                 >
-                  Preview
+                  Aperçu
                 </button>
               </div>
               
@@ -294,9 +324,9 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       </label>
                       <div className="flex space-x-2">
                         {[
-                          { id: 'officiel', label: 'Official', icon: <FaEnvelope /> },
+                          { id: 'officiel', label: 'Officiel', icon: <FaEnvelope /> },
                           { id: 'urgent', label: 'Urgent', icon: <FaExclamationTriangle /> },
-                          { id: 'interne', label: 'Internal', icon: <FaBuilding /> }
+                          { id: 'interne', label: 'Interne', icon: <FaBuilding /> }
                         ].map((type) => (
                           <label 
                             key={type.id}
@@ -337,14 +367,14 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
 
                     <div className="md:col-span-2">
                       <label className={`block text-sm font-medium mb-2 ${textColor}`}>
-                        Subject <span className="text-red-500">*</span>
+                        Sujet <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
                         name="subject"
                         value={formData.subject}
                         onChange={handleInputChange}
-                        placeholder="Enter a clear subject line..."
+                        placeholder="Entrez un sujet clair..."
                         className={`
                           w-full px-4 py-3 rounded-lg border ${borderColor}
                           ${inputBg} ${textColor} focus:ring-2
@@ -355,12 +385,11 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                         maxLength={200}
                       />
                       {errors.subject && <p className="text-red-500 text-xs mt-1">{errors.subject}</p>}
-                      <p className={`text-xs mt-1 ${subTextColor}`}>{formData.subject.length}/200 characters</p>
+                      <p className={`text-xs mt-1 ${subTextColor}`}>{formData.subject.length}/200 caractères</p>
                     </div>
-
                     <div className="md:col-span-2">
                       <label className={`block text-sm font-medium mb-2 ${textColor}`}>
-                        Receiver Departments <span className="text-red-500">*</span>
+                        Départements Destinataires <span className="text-red-500">*</span>
                       </label>
                       {departments.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -381,20 +410,19 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-red-500 text-sm">No departments available for this role</p>
+                        <p className="text-red-500 text-sm">Aucun département disponible pour ce rôle</p>
                       )}
                       {errors.receiver && <p className="text-red-500 text-xs mt-1">{errors.receiver}</p>}
                     </div>
-
                     <div className="md:col-span-2">
                       <label className={`block text-sm font-medium mb-2 ${textColor}`}>
-                        Content <span className="text-red-500">*</span>
+                        Contenu <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         name="content"
                         value={formData.content}
                         onChange={handleInputChange}
-                        placeholder="Enter your message..."
+                        placeholder="Entrez votre message..."
                         rows={6}
                         className={`
                           w-full px-4 py-3 rounded-lg border ${borderColor}
@@ -409,8 +437,8 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
 
                     <div className="md:col-span-2">
                       <div className="flex justify-between items-center mb-2">
-                        <label className={`block text-sm font-medium ${textColor}`}>Attachments</label>
-                        <span className={`text-xs ${subTextColor}`}>{formData.attachments?.length || 0} file(s)</span>
+                        <label className={`block text-sm font-medium ${textColor}`}>Pièces Jointes</label>
+                        <span className={`text-xs ${subTextColor}`}>{formData.attachments?.length || 0} fichier(s)</span>
                       </div>
                       <div 
                         onClick={triggerFileUpload}
@@ -428,8 +456,8 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           className="hidden"
                         />
                         <FaPaperclip className={`mx-auto mb-2 ${subTextColor}`} size={24} />
-                        <p className={`text-sm ${textColor}`}>Click to upload or drag and drop</p>
-                        <p className={`text-xs ${subTextColor} mt-1`}>PDF, DOC, DOCX, JPG, PNG (max 10MB each)</p>
+                        <p className={`text-sm ${textColor}`}>Cliquez pour télécharger ou glisser-déposer</p>
+                        <p className={`text-xs ${subTextColor} mt-1`}>PDF, DOC, DOCX, JPG, PNG (max 10MB chacun)</p>
                       </div>
                       {formData.attachments?.length > 0 && (
                         <div className="mt-4 space-y-2 max-h-40 overflow-y-auto pr-2">
@@ -442,7 +470,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                                 <div className="flex-shrink-0">{getFileIcon(file.type)}</div>
                                 <div className="overflow-hidden">
                                   <p className={`text-sm font-medium truncate ${textColor}`}>{file.name}</p>
-                                  <p className={`text-xs ${subTextColor}`}>{file.size ? formatFileSize(file.size) : 'Existing file'}</p>
+                                  <p className={`text-xs ${subTextColor}`}>{file.size ? formatFileSize(file.size) : 'Fichier existant'}</p>
                                 </div>
                               </div>
                               <button
@@ -470,15 +498,15 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       onClick={() => onClose(null)}
                       className={`px-5 py-2.5 rounded-lg border ${borderColor} text-sm font-medium ${textColor} hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200`}
                     >
-                      Cancel
+                      Annuler
                     </button>
                     <button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || !senderRole}
                       className={`
                         px-5 py-2.5 rounded-lg text-sm font-medium text-white
                         transition-all duration-200 ${gradientBg} hover:opacity-90
-                        flex items-center space-x-2 ${submitting ? 'opacity-50 cursor-not-allowed' : ''}
+                        flex items-center space-x-2 ${submitting || !senderRole ? 'opacity-50 cursor-not-allowed' : ''}
                         relative overflow-hidden group
                       `}
                     >
@@ -492,7 +520,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       )}
                       <div className="relative z-10 flex items-center space-x-2">
                         <FaCheck size={14} />
-                        <span>{submitting ? 'Sending...' : 'Send Courrier'}</span>
+                        <span>{submitting ? 'Envoi...' : 'Envoyer le Courrier'}</span>
                       </div>
                       <div className="absolute bottom-0 left-0 h-1 bg-white/20 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300"></div>
                     </button>
@@ -503,11 +531,11 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h3 className="text-xl font-bold bg-gradient-to-r from-[#A78800] to-[#D4AF37] bg-clip-text text-transparent">
-                        {formData.subject || 'No Subject'}
+                        {formData.subject || 'Sans Sujet'}
                       </h3>
                       <div className="flex items-center mt-2">
                         <span className={`text-sm ${subTextColor}`}>
-                          {new Date().toLocaleDateString('en-US', { 
+                          {new Date().toLocaleDateString('fr-FR', { 
                             year: 'numeric', 
                             month: 'short', 
                             day: 'numeric', 
@@ -529,14 +557,14 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       {formData.type === 'urgent' && <FaExclamationTriangle className="mr-1" size={10} />}
                       {formData.type === 'officiel' && <FaEnvelope className="mr-1" size={10} />}
                       {formData.type === 'interne' && <FaBuilding className="mr-1" size={10} />}
-                      {formData.type === 'officiel' ? 'Official' : formData.type === 'urgent' ? 'Urgent' : 'Internal'}
+                      {formData.type === 'officiel' ? 'Officiel' : formData.type === 'urgent' ? 'Urgent' : 'Interne'}
                     </div>
                   </div>
                   
                   <div className="mb-6">
                     <div className="text-sm font-medium mb-2 flex items-center">
                       <span className="bg-[#A78800] h-4 w-1 rounded-full mr-2"></span>
-                      Receiver Departments:
+                      Départements Destinataires:
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {formData.receiverDepartments.map(dept => (
@@ -550,7 +578,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       {formData.receiverDepartments.length === 0 && (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm 
                         bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                          No departments selected
+                          Aucun département sélectionné
                         </span>
                       )}
                     </div>
@@ -561,7 +589,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       <span className="text-xs font-medium text-[#A78800]">MESSAGE</span>
                     </div>
                     <div className={`whitespace-pre-wrap ${textColor} leading-relaxed`}>
-                      {formData.content || 'No content provided'}
+                      {formData.content || 'Aucun contenu fourni'}
                     </div>
                   </div>
                   
@@ -569,7 +597,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                     <div>
                       <div className="text-sm font-medium mb-3 flex items-center">
                         <FaPaperclip className="mr-2 text-[#A78800]" />
-                        <span>Attachments ({formData.attachments.length})</span>
+                        <span>Pièces Jointes ({formData.attachments.length})</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {formData.attachments.map((file, index) => (
@@ -587,7 +615,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                             <div className="overflow-hidden">
                               <p className={`text-sm font-medium truncate ${textColor}`}>{file.name}</p>
                               <p className={`text-xs ${subTextColor}`}>
-                                {file.size ? formatFileSize(file.size) : 'File attached'}
+                                {file.size ? formatFileSize(file.size) : 'Fichier joint'}
                               </p>
                             </div>
                           </div>
@@ -607,10 +635,10 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           shadow-md hover:shadow-lg hover:shadow-[#A78800]/20
                         `}
                       >
-                        Edit Message
+                        Modifier le Message
                       </button>
                       <div className="mt-2 text-xs text-[#A78800]">
-                        Review before sending
+                        Vérifiez avant d’envoyer
                       </div>
                     </div>
                   </div>

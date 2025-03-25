@@ -1,4 +1,3 @@
-// Backend/models/Mail.js
 const mongoose = require('mongoose');
 
 const mailSchema = new mongoose.Schema({
@@ -31,19 +30,18 @@ const mailSchema = new mongoose.Schema({
     enum: [
       'Présidence',
       'Direction Générale des Services',
-      'Bureau d\'Ordre',
+      'Bureau d’Ordre', // Updated to curly quotes
       'Secrétariat du Conseil',
       'Secrétariat du Président',
       'Ressources Humaines',
       'Division Financière',
       'Division Technique',
-      'Bureau d\'Hygiène',
+      'Bureau d’Hygiène', // Updated to curly quotes
       'Partenariat et Coopération',
       'Informatique et Communication',
       'Administration'
     ]
   }],
-  
   attachments: [{ type: String }],
   status: {
     type: String,
@@ -66,6 +64,11 @@ const mailSchema = new mongoose.Schema({
     default: false
   },
   favorite: { type: Boolean, default: false },
+  archivedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

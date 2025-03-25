@@ -39,58 +39,61 @@ const CourrierInbox = () => {
   const borderColor = darkMode ? 'border-gray-700/20' : 'border-gray-200';
 
   // Fetch user data and courriers from backend
+  const fetchData = async () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Utilisateur non authentifié');
+      setLoading(false);
+      return;
+    }
+  
+    try {
+      const profileResponse = await axios.get('http://localhost:5000/api/users/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('User profile:', profileResponse.data); // Verify department
+      setUserData({
+        role: profileResponse.data.role,
+        department: profileResponse.data.department,
+      });
+  
+      const section = window.location.pathname.includes('sent') ? 'sent' : 'inbox';
+      const mailsResponse = await axios.get('http://localhost:5000/api/mails/mails-and-counts', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { section },
+      });
+  
+      console.log('Mails response for', profileResponse.data.role, ':', mailsResponse.data.courriers);
+  
+      const mappedCourriers = mailsResponse.data.courriers.map(mail => ({
+        id: mail._id,
+        sender: mail.sender.department,
+        subject: mail.subject,
+        content: mail.content,
+        date: new Date(mail.createdAt).toLocaleString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        read: mail.isRead,
+        favorite: mail.favorite,
+        urgent: mail.type === 'urgent',
+        department: mail.sender.department,
+        attachments: mail.attachments.length,
+      }));
+  
+      setCourriers(mappedCourriers);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching data:', err.response?.data || err.message);
+      setError(err.response?.data?.error || 'Erreur lors du chargement des données');
+      setLoading(false);
+    }
+  };
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Utilisateur non authentifié');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const profileResponse = await axios.get('http://localhost:5000/api/users/profile', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUserData({
-          role: profileResponse.data.role,
-          department: profileResponse.data.department,
-        });
-
-        const mailsResponse = await axios.get('http://localhost:5000/api/mails', {
-          headers: { Authorization: `Bearer ${token}` },
-          params: { section: 'inbox' },
-        });
-
-        const mappedCourriers = mailsResponse.data.map(mail => ({
-          id: mail._id,
-          sender: mail.sender.department,
-          subject: mail.subject,
-          content: mail.content,
-          date: new Date(mail.createdAt).toLocaleString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          read: mail.isRead,
-          favorite: mail.favorite, // Use backend value instead of hardcoding
-          urgent: mail.type === 'urgent',
-          department: mail.sender.department,
-          attachments: mail.attachments.length,
-        }));
-
-        setCourriers(mappedCourriers);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError(err.response?.data?.error || 'Erreur lors du chargement des données');
-        setLoading(false);
-      }
-    };
-
     fetchData();
   }, []);
 
@@ -113,7 +116,7 @@ const CourrierInbox = () => {
       const token = localStorage.getItem('token');
       const mail = courriers.find(c => c.id === id);
       await axios.put(
-        `http://localhost:5000/api/mails/${id}`, // Keep this as /:id
+        `http://localhost:5000/api/mails/${id}`,
         { isRead: !mail.read },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -142,7 +145,7 @@ const CourrierInbox = () => {
       setSelectedCourriers([]);
       setSelectAll(false);
     } catch (err) {
-      console.error('Error bulk updating read status:', err);
+      console.error('Error bulk updating read status:', err.response?.data || err.message);
       setError('Erreur lors de la mise à jour en masse');
     }
   };
@@ -154,7 +157,7 @@ const CourrierInbox = () => {
       const newFavoriteStatus = !mail.favorite;
   
       await axios.put(
-        `http://localhost:5000/api/mails/${id}`, // Keep this as /:id since we moved status updates to /:id/status
+        `http://localhost:5000/api/mails/${id}`,
         { favorite: newFavoriteStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -171,15 +174,16 @@ const CourrierInbox = () => {
   const handleArchive = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(
-        `http://localhost:5000/api/mails/${id}/status`, // Change to /:id/status
+      const response = await axios.put(
+        `http://localhost:5000/api/mails/${id}/status`,
         { section: 'archives' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCourriers(prev => prev.filter(c => c.id !== id));
+      fetchData(); // Refresh data to update counts
     } catch (err) {
       console.error('Error archiving mail:', err.response?.data || err.message);
-      setError('Erreur lors de l’archivage');
+      setError(`Erreur lors de l’archivage: ${err.response?.data?.error || err.message}`);
     }
   };
 
@@ -188,7 +192,7 @@ const CourrierInbox = () => {
       const token = localStorage.getItem('token');
       await Promise.all(selectedCourriers.map(id =>
         axios.put(
-          `http://localhost:5000/api/mails/${id}/status`, // Change to /:id/status
+          `http://localhost:5000/api/mails/${id}/status`,
           { section: 'archives' },
           { headers: { Authorization: `Bearer ${token}` } }
         )
@@ -196,9 +200,10 @@ const CourrierInbox = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
+      fetchData(); // Refresh data
     } catch (err) {
       console.error('Error bulk archiving:', err.response?.data || err.message);
-      setError('Erreur lors de l’archivage en masse');
+      setError('Erreur lors de l’archivage en masse: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -209,9 +214,10 @@ const CourrierInbox = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCourriers(prev => prev.filter(c => c.id !== id));
+      fetchData(); // Refresh data
     } catch (err) {
-      console.error('Error deleting mail:', err);
-      setError('Erreur lors de la suppression');
+      console.error('Error deleting mail:', err.response?.data || err.message);
+      setError('Erreur lors de la suppression: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -226,45 +232,17 @@ const CourrierInbox = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
+      fetchData(); // Refresh data
     } catch (err) {
-      console.error('Error bulk deleting:', err);
-      setError('Erreur lors de la suppression en masse');
+      console.error('Error bulk deleting:', err.response?.data || err.message);
+      setError('Erreur lors de la suppression en masse: ' + (err.response?.data?.error || err.message));
     }
   };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    const token = localStorage.getItem('token');
-    try {
-      const response = await axios.get('http://localhost:5000/api/mails', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { section: 'inbox' },
-      });
-      const mappedCourriers = response.data.map(mail => ({
-        id: mail._id,
-        sender: mail.sender.department,
-        subject: mail.subject,
-        content: mail.content,
-        date: new Date(mail.createdAt).toLocaleString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        read: mail.isRead,
-        favorite: mail.favorite, // Ensure refresh also uses backend value
-        urgent: mail.type === 'urgent',
-        department: mail.sender.department,
-        attachments: mail.attachments.length,
-      }));
-      setCourriers(mappedCourriers);
-      setIsRefreshing(false);
-    } catch (err) {
-      console.error('Error refreshing:', err);
-      setError('Erreur lors du rafraîchissement');
-      setIsRefreshing(false);
-    }
+    await fetchData();
+    setIsRefreshing(false);
   };
 
   // Filter logic
@@ -339,7 +317,9 @@ const CourrierInbox = () => {
         <div className="relative z-10 p-8">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold mb-2 text-white">Boîte de Réception</h1>
+              <h1 className="text-3xl font-bold mb-2 text-white">
+                {window.location.pathname.includes('sent') ? 'Courriers Envoyés' : 'Boîte de Réception'}
+              </h1>
               <p className="text-white/80 flex items-center gap-2 flex-wrap">
                 <span>{userData.department}</span>
                 <span className="inline-block w-1 h-1 rounded-full bg-white/60"></span>

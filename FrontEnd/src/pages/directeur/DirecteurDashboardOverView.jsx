@@ -13,11 +13,11 @@ const DirecteurDashboardOverview = () => {
   // Dynamic stats based on role
   const stats = isDGS
     ? { sent: 42, received: 58, pending: 12, archived: 23 } // DGS stats
-    : { sent: 25, received: 40, pending: 8, archived: 15 }; // BO stats
+    : { sent: 25, received: 10, pending: 8, archived: 15 }; // BO stats (reduced received since BO only gets from specific senders)
 
   const statsCards = [
     { title: "Sent", value: stats.sent, icon: <FaUpload />, color: "#A78800", bgColor: "#A78800/10", trend: isDGS ? 8.5 : 5.2 },
-    { title: "Received", value: stats.received, icon: <FaDownload />, color: "#3B82F6", bgColor: "#3B82F6/10", trend: isDGS ? 12.3 : 7.8 },
+    { title: "Received", value: stats.received, icon: <FaDownload />, color: "#3B82F6", bgColor: "#3B82F6/10", trend: isDGS ? 12.3 : 2.8 },
     { title: "Pending", value: stats.pending, icon: <FaClipboardList />, color: "#F59E0B", bgColor: "#F59E0B/10", trend: isDGS ? -4.2 : -3.1 },
     { title: "Archived", value: stats.archived, icon: <FaArchive />, color: "#8B5CF6", bgColor: "#8B5CF6/10", trend: isDGS ? 15.7 : 10.4 },
   ];
@@ -69,7 +69,7 @@ const DirecteurDashboardOverview = () => {
     <div className="mb-8">
       <div className="p-6 rounded-2xl bg-gradient-to-r from-[#A78800] to-[#8A6D00] shadow-lg">
         <h1 className="text-3xl font-bold mb-2 text-white">
-          Welcome back, {(userData?.fullName || (isDGS ? 'Directeur' : 'Bureau d\'Ordre')).split(' ')[0]}
+          Welcome back, {(userData?.fullName || (isDGS ? 'Directeur' : 'Bureau d’Ordre')).split(' ')[0]}
         </h1>
         <p className="text-white/80">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -101,33 +101,32 @@ const DirecteurDashboardOverview = () => {
         </div>
       ))}
     </div>
-  );
-
-  const renderQuickActions = () => (
+  );const renderQuickActions = () => (
     <div className={`rounded-2xl ${darkMode ? 'bg-[#1F2024]' : 'bg-white'} p-6 mb-8`}>
       <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
       <div className="grid grid-cols-4 gap-3">
         <button onClick={() => setIsModalOpen(true)} className="group flex flex-col items-center justify-center py-4 px-3 rounded-xl bg-[#A78800] text-white transition-all duration-300 hover:bg-[#8A6D00] hover:shadow-lg transform hover:scale-105">
           <FaEnvelope className="text-xl mb-1" />
-          <span className="text-sm mt-1">{isDGS ? 'New Message' : 'Register Courrier'}</span>
+          <span className="text-sm mt-1">New Courrier</span>
         </button>
-        <a href={`/dashboard/${userData?.department || 'bo'}/inbox`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#3B82F6]`}>
+        <a href={`/dashboard/${userData?.department || 'Bureau d’Ordre'}/inbox`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#3B82F6]`}>
           <FaDownload className="text-xl mb-1 text-[#3B82F6]" />
           <span className="text-sm mt-1">Inbox</span>
           <span className="mt-1 px-2 py-0.5 text-xs bg-[#3B82F6] text-white rounded-full">New</span>
         </a>
-        <a href={`/dashboard/${userData?.department || 'bo'}/pending`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#F59E0B]`}>
+        <a href={`/dashboard/${userData?.department || 'Bureau d’Ordre'}/pending`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#F59E0B]`}>
           <FaClipboardList className="text-xl mb-1 text-[#F59E0B]" />
           <span className="text-sm mt-1">Pending</span>
           {stats.pending > 0 && <span className="mt-1 px-2 py-0.5 text-xs bg-[#F59E0B] text-white rounded-full">{stats.pending}</span>}
         </a>
-        <a href={`/dashboard/${userData?.department || 'bo'}/archived`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#8B5CF6]`}>
+        <a href={`/dashboard/${userData?.department || 'Bureau d’Ordre'}/archived`} className={`group flex flex-col items-center justify-center py-4 px-3 rounded-xl ${darkMode ? 'bg-[#131313] hover:bg-[#1F2024]' : 'bg-gray-100 hover:bg-gray-200'} transition-all duration-300 hover:shadow-lg transform hover:scale-105 border border-transparent hover:border-[#8B5CF6]`}>
           <FaArchive className="text-xl mb-1 text-[#8B5CF6]" />
           <span className="text-sm mt-1">Archive</span>
         </a>
       </div>
     </div>
   );
+
 
   const renderActivityTable = () => (
     <div className={`rounded-2xl ${darkMode ? 'bg-[#1F2024]' : 'bg-white'} p-6 mb-8`}>

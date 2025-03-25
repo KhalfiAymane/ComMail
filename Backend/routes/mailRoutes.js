@@ -16,7 +16,7 @@ router.get('/mails-and-counts', auth, async (req, res) => {
   console.log('Reached /mails-and-counts endpoint');
   try {
     const userId = req.user.userId;
-    const userDepartment = req.user.department;
+    const userDepartment = req.user.department; // "Bureau d’Ordre" with curly quotes
     const role = req.user.role;
 
     const { section, type, receiverDepartments, status, subject } = req.query;
@@ -25,28 +25,23 @@ router.get('/mails-and-counts', auth, async (req, res) => {
     if (section === 'sent') {
       filter.sender = userId;
     } else if (section === 'inbox') {
-      filter.receiverDepartments = userDepartment; // Only departments now
+      filter.receiverDepartments = userDepartment; // Exact match for "Bureau d’Ordre"
     } else if (section === 'drafts') {
       filter.sender = userId;
       filter.status = 'en_attente';
     } else if (section === 'archives') {
-      filter.$or = [
-        { sender: userId },
-        { receiverDepartments: userDepartment }
-      ];
-      filter.section = 'archives';
+      if (['admin', 'dgs'].includes(role)) {
+        filter.section = 'archives';
+      } else {
+        filter.$or = [
+          { sender: userId },
+          { receiverDepartments: userDepartment }
+        ];
+        filter.section = 'archives';
+      }
     } else if (section === 'pendingValidation') {
       filter.status = 'en_attente';
       filter.receiverDepartments = userDepartment;
-    }
-
-    if (!['admin', 'president', 'dgs'].includes(role)) {
-      const baseFilter = filter.$or || [];
-      filter.$or = [
-        ...baseFilter,
-        { sender: userId },
-        { receiverDepartments: userDepartment }
-      ];
     }
 
     if (type) filter.type = { $in: type.split(',') };
@@ -54,9 +49,14 @@ router.get('/mails-and-counts', auth, async (req, res) => {
     if (status && section !== 'pendingValidation') filter.status = { $in: status.split(',') };
     if (subject) filter.subject = { $regex: subject, $options: 'i' };
 
+    console.log('Filter applied:', filter, 'User:', { userId, userDepartment, role });
+
     const courriers = await Mail.find(filter)
-      .populate('sender', 'email department role') // Adjusted fields
+      .populate('sender', 'email department role')
+      .populate('archivedBy', 'email')
       .sort({ createdAt: -1 });
+
+    console.log('Courriers found:', courriers.length, 'Data:', courriers);
 
     const counts = {};
     const sections = ['inbox', 'sent', 'drafts', 'archives', 'pendingValidation'];
@@ -70,25 +70,19 @@ router.get('/mails-and-counts', auth, async (req, res) => {
         countFilter.sender = userId;
         countFilter.status = 'en_attente';
       } else if (sec === 'archives') {
-        countFilter.$or = [
-          { sender: userId },
-          { receiverDepartments: userDepartment }
-        ];
-        countFilter.section = 'archives';
+        if (['admin', 'dgs'].includes(role)) {
+          countFilter.section = 'archives';
+        } else {
+          countFilter.$or = [
+            { sender: userId },
+            { receiverDepartments: userDepartment }
+          ];
+          countFilter.section = 'archives';
+        }
       } else if (sec === 'pendingValidation') {
         countFilter.status = 'en_attente';
         countFilter.receiverDepartments = userDepartment;
       }
-
-      if (!['admin', 'president', 'dgs'].includes(role)) {
-        const baseFilter = countFilter.$or || [];
-        countFilter.$or = [
-          ...baseFilter,
-          { sender: userId },
-          { receiverDepartments: userDepartment }
-        ];
-      }
-
       counts[sec] = await Mail.countDocuments(countFilter);
     }
 
@@ -160,12 +154,7 @@ router.patch(
 );
 
 // Update mail status or section (PUT route for validate/reject/archive)
-router.put(
-  '/:id/status',
-  auth,
-  checkRole(['directeur', 'admin', 'president', 'dgs']),
-  updateMailStatus
-);
+router.put('/:id/status', auth, updateMailStatus);
 router.put('/:id', auth, updateMail);
 // Delete a mail
 router.delete('/:id', auth, async (req, res) => {

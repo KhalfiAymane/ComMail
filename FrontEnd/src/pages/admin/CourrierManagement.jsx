@@ -242,7 +242,7 @@ const CourrierManagement = () => {
     setActionLoading(true);
     try {
       await axios.put(
-        `${API_URL}/mails/${id}`,
+        `${API_URL}/mails/${id}/status`, // Updated endpoint
         { section: 'archives' },
         getAuthHeaders()
       );

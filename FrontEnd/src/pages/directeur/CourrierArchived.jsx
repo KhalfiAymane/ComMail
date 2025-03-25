@@ -8,10 +8,41 @@ import {
   X, Box, RefreshCw, Eye, CornerUpLeft, Forward,
   Calendar, Download, Printer, Tag, FileText, Users, User
 } from 'lucide-react';
+import axios from 'axios';
 
-const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance' } }) => {
+const CourrierArchived = () => {
   const { darkMode } = useTheme();
-  
+
+  // Theme-based styling
+  const mainBg = darkMode ? 'bg-[#131313]' : 'bg-[#F5F5F5]';
+  const containerBg = darkMode ? 'bg-[#1F2024]' : 'bg-[#FFFFFF]';
+  const textColor = darkMode ? 'text-[#FFFFFF]' : 'text-[#000000]';
+  const subTextColor = darkMode ? 'text-[#AAAAAA]' : 'text-[#4C4C4C]';
+  const hoverBg = darkMode ? 'hover:bg-[#131313]/80' : 'hover:bg-gray-100';
+  const accentColor = 'text-[#A78800]';
+  const accentBg = 'bg-[#A78800]';
+  const borderColor = darkMode ? 'border-gray-700/20' : 'border-gray-200';
+
+  // State management
+  const [userData, setUserData] = useState({ role: '', department: '', email: '' });
+  const [courriers, setCourriers] = useState([]);
+  const [selectedCourriers, setSelectedCourriers] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [hoveredCourrier, setHoveredCourrier] = useState(null);
+  const [viewMode, setViewMode] = useState('compact');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPersonalView, setIsPersonalView] = useState(true);
+  const [dateRangeFilter, setDateRangeFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [showTagsFilter, setShowTagsFilter] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [counts, setCounts] = useState({});
+
   // Inject styles into document head
   useEffect(() => {
     const styleSheet = document.createElement('style');
@@ -28,159 +59,77 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
       document.head.removeChild(styleSheet);
     };
   }, []);
-  
-  // Theme-based styling
-  const mainBg = darkMode ? 'bg-[#131313]' : 'bg-[#F5F5F5]';
-  const containerBg = darkMode ? 'bg-[#1F2024]' : 'bg-[#FFFFFF]';
-  const textColor = darkMode ? 'text-[#FFFFFF]' : 'text-[#000000]';
-  const subTextColor = darkMode ? 'text-[#AAAAAA]' : 'text-[#4C4C4C]';
-  const hoverBg = darkMode ? 'hover:bg-[#131313]/80' : 'hover:bg-gray-100';
-  const accentColor = 'text-[#A78800]'; // Gold color 
-  const accentBg = 'bg-[#A78800]'; // Gold background
-  const borderColor = darkMode ? 'border-gray-700/20' : 'border-gray-200';
-  
-  // State management
-  const [courriers, setCourriers] = useState([]);
-  const [selectedCourriers, setSelectedCourriers] = useState([]);
-  const [selectAll, setSelectAll] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [hoveredCourrier, setHoveredCourrier] = useState(null);
-  const [viewMode, setViewMode] = useState('compact');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isPersonalView, setIsPersonalView] = useState(true);
-  const [dateRangeFilter, setDateRangeFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [showTagsFilter, setShowTagsFilter] = useState(false);
-  
-  // Mock data for archived courriers
-  const mockCourriers = [
-    {
-      id: 1,
-      sender: 'Resources Humaines',
-      subject: 'Ancien dossier d\'évaluation du personnel',
-      content: 'Archives des évaluations de performance des employés administratifs pour l\'année précédente.',
-      dateArchived: '12 Mars 2025',
-      archivedBy: 'Martin Dupont',
-      originalDate: '15 Jan 2025',
-      read: true,
-      favorite: true,
-      priority: 'high',
-      department: 'RH',
-      tags: ['Évaluations', 'Archives'],
-      attachments: 3,
-      personal: true
-    },
-    {
-      id: 2,
-      sender: 'Service Technique',
-      subject: 'Plans de rénovation - Phase 1',
-      content: 'Documentation complète de la première phase du projet de rénovation du bâtiment municipal.',
-      dateArchived: '10 Mars 2025',
-      archivedBy: 'Vous',
-      originalDate: '5 Jan 2025',
-      read: true,
-      favorite: false,
-      priority: 'medium',
-      department: 'Technique',
-      tags: ['Rénovations', 'Plans'],
-      attachments: 5,
-      personal: true
-    },
-    {
-      id: 3,
-      sender: 'Direction Générale',
-      subject: 'Compte-rendu - Réunion trimestrielle Q4 2024',
-      content: 'Résumé des points abordés lors de la réunion trimestrielle de décembre avec les différents services.',
-      dateArchived: '5 Mars 2025',
-      archivedBy: 'Sophie Martin',
-      originalDate: '20 Dec 2024',
-      read: true,
-      favorite: true,
-      priority: 'medium',
-      department: 'DG',
-      tags: ['Réunions', 'Q4'],
-      attachments: 1,
-      personal: false
-    },
-    {
-      id: 4,
-      sender: 'Service Financier',
-      subject: 'Budget prévisionnel 2024 - Version préliminaire',
-      content: 'Première ébauche du budget prévisionnel pour l\'exercice 2024 avant révisions finales.',
-      dateArchived: '28 Fév 2025',
-      archivedBy: 'Vous',
-      originalDate: '15 Nov 2024',
-      read: true,
-      favorite: false,
-      priority: 'high',
-      department: 'Finance',
-      tags: ['Budget', 'Prévisions'],
-      attachments: 2,
-      personal: true
-    },
-    {
-      id: 5,
-      sender: 'Service Urbanisme',
-      subject: 'Dossiers d\'attribution de permis de construire - T3 2024',
-      content: 'Archives des permis de construction approuvés durant le troisième trimestre 2024 pour le quartier est.',
-      dateArchived: '20 Fév 2025',
-      archivedBy: 'Jean Leroy',
-      originalDate: '10 Oct 2024',
-      read: true,
-      favorite: false,
-      priority: 'low',
-      department: 'Urbanisme',
-      tags: ['Permis', 'Construction'],
-      attachments: 6,
-      personal: false
-    },
-    {
-      id: 6,
-      sender: 'Service Communication',
-      subject: 'Matériel promotionnel - Festival d\'été 2024',
-      content: 'Ensemble des supports de communication utilisés pour la promotion du festival municipal de l\'été dernier.',
-      dateArchived: '15 Fév 2025',
-      archivedBy: 'Vous',
-      originalDate: '5 Jun 2024',
-      read: true,
-      favorite: true,
-      priority: 'low',
-      department: 'Communication',
-      tags: ['Festival', 'Marketing'],
-      attachments: 4,
-      personal: true
-    },
-    {
-      id: 7,
-      sender: 'Police Municipale',
-      subject: 'Statistiques de sécurité - Année 2024',
-      content: 'Compilation annuelle des incidents et interventions sur le territoire municipal pour l\'année 2024.',
-      dateArchived: '10 Fév 2025',
-      archivedBy: 'Antoine Dubois',
-      originalDate: '20 Jan 2025',
-      read: true,
-      favorite: false,
-      priority: 'medium',
-      department: 'Sécurité',
-      tags: ['Statistiques', 'Sécurité'],
-      attachments: 2,
-      personal: false
-    },
-  ];
-  
+
+  // Fetch data from backend
+  const fetchData = async () => {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Utilisateur non authentifié');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const profileResponse = await axios.get('http://localhost:5000/api/users/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserData({
+        role: profileResponse.data.role,
+        department: profileResponse.data.department,
+        email: profileResponse.data.email,
+      });
+
+      const mailsResponse = await axios.get('http://localhost:5000/api/mails/mails-and-counts', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { section: 'archives' },
+      });
+
+      const mappedCourriers = mailsResponse.data.courriers.map(mail => ({
+        id: mail._id,
+        sender: mail.sender.department,
+        subject: mail.subject,
+        content: mail.content,
+        dateArchived: new Date(mail.updatedAt).toLocaleString('fr-FR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        archivedBy: mail.archivedBy ? mail.archivedBy.email : 'Unknown',
+        originalDate: new Date(mail.createdAt).toLocaleString('fr-FR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        read: mail.isRead,
+        favorite: mail.favorite,
+        priority: mail.type === 'urgent' ? 'high' : mail.type === 'officiel' ? 'medium' : 'low',
+        department: mail.sender.department,
+        tags: [], // Add tags if supported in backend
+        attachments: mail.attachments.length,
+        personal: mail.sender._id.toString() === profileResponse.data._id || mail.receiverDepartments.includes(profileResponse.data.department),
+      }));
+
+      setCourriers(mappedCourriers);
+      setCounts(mailsResponse.data.counts);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err.response?.data?.error || 'Erreur lors du chargement des données');
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setCourriers(mockCourriers);
+    fetchData();
   }, []);
-  
+
   // Handler functions
   const handleSelectAll = () => {
     setSelectAll(!selectAll);
     setSelectedCourriers(selectAll ? [] : filteredCourriers.map(c => c.id));
   };
-  
+
   const handleSelect = (id) => {
     setSelectedCourriers(prev => 
       prev.includes(id) 
@@ -188,74 +137,130 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
         : [...prev, id]
     );
   };
-  
-  const handleFavoriteToggle = (id) => {
-    setCourriers(prev => prev.map(c => 
-      c.id === id ? { ...c, favorite: !c.favorite } : c
-    ));
-  };
-  
-  const handleUnarchive = (id) => {
-    setCourriers(prev => prev.filter(c => c.id !== id));
-  };
-  
-  const handleBulkUnarchive = () => {
-    setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
-    setSelectedCourriers([]);
-    setSelectAll(false);
-  };
-  
-  const handleDelete = (id) => {
-    setCourriers(prev => prev.filter(c => c.id !== id));
-  };
-  
-  const handleBulkDelete = () => {
-    setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
-    setSelectedCourriers([]);
-    setSelectAll(false);
+
+  const handleFavoriteToggle = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      const mail = courriers.find(c => c.id === id);
+      const newFavoriteStatus = !mail.favorite;
+      await axios.put(
+        `http://localhost:5000/api/mails/${id}`,
+        { favorite: newFavoriteStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCourriers(prev => prev.map(c => 
+        c.id === id ? { ...c, favorite: newFavoriteStatus } : c
+      ));
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+      setError('Erreur lors de la mise à jour des favoris');
+    }
   };
 
-  const handleRefresh = () => {
+  const handleUnarchive = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:5000/api/mails/${id}/status`,
+        { section: 'inbox' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCourriers(prev => prev.filter(c => c.id !== id));
+      fetchData(); // Refresh counts
+    } catch (err) {
+      console.error('Error unarchiving mail:', err);
+      setError('Erreur lors du désarchivage');
+    }
+  };
+
+  const handleBulkUnarchive = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await Promise.all(selectedCourriers.map(id =>
+        axios.put(
+          `http://localhost:5000/api/mails/${id}/status`,
+          { section: 'inbox' },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+      ));
+      setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
+      setSelectedCourriers([]);
+      setSelectAll(false);
+      fetchData(); // Refresh counts
+    } catch (err) {
+      console.error('Error bulk unarchiving:', err);
+      setError('Erreur lors du désarchivage en masse');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:5000/api/mails/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCourriers(prev => prev.filter(c => c.id !== id));
+      fetchData(); // Refresh counts
+    } catch (err) {
+      console.error('Error deleting mail:', err);
+      setError('Erreur lors de la suppression');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      await Promise.all(selectedCourriers.map(id =>
+        axios.delete(`http://localhost:5000/api/mails/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ));
+      setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
+      setSelectedCourriers([]);
+      setSelectAll(false);
+      fetchData(); // Refresh counts
+    } catch (err) {
+      console.error('Error bulk deleting:', err);
+      setError('Erreur lors de la suppression en masse');
+    }
+  };
+
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      setCourriers(mockCourriers);
-    }, 1000);
+    await fetchData();
+    setIsRefreshing(false);
   };
-  
-  const handleViewToggle = () => {
-    setIsPersonalView(!isPersonalView);
-  };
-  
+
   // Filter logic
   const filteredCourriers = courriers.filter(courrier => {
-    // First check personal/centralized view
     if (isPersonalView && !courrier.personal) return false;
-    
-    // Then check favorites filter
     if (showFavoritesOnly && !courrier.favorite) return false;
-    
-    // Department filter
     if (activeFilter !== 'all' && courrier.department !== activeFilter) return false;
-    
-    // Priority filter
     if (priorityFilter !== 'all' && courrier.priority !== priorityFilter) return false;
-    
-    // Search query
+
+    if (dateRangeFilter !== 'all') {
+      const archivedDate = new Date(courrier.dateArchived);
+      const now = new Date();
+      const diffDays = Math.ceil((now - archivedDate) / (1000 * 60 * 60 * 24));
+      if (dateRangeFilter === '7 derniers jours' && diffDays > 7) return false;
+      if (dateRangeFilter === '30 derniers jours' && diffDays > 30) return false;
+      if (dateRangeFilter === '3 derniers mois' && diffDays > 90) return false;
+      if (dateRangeFilter === '6 derniers mois' && diffDays > 180) return false;
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
         courrier.sender.toLowerCase().includes(query) ||
         courrier.subject.toLowerCase().includes(query) ||
         courrier.content.toLowerCase().includes(query) ||
-        courrier.department.toLowerCase().includes(query) ||
-        (courrier.tags && courrier.tags.some(tag => tag.toLowerCase().includes(query)))
+        courrier.department.toLowerCase().includes(query)
       );
     }
-    
+
     return true;
   });
-  
+
   // Count statistics
   const totalCount = courriers.length;
   const personalCount = courriers.filter(c => c.personal).length;
@@ -263,7 +268,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
   const favoriteCount = courriers.filter(c => c.favorite).length;
   const personalFavorites = courriers.filter(c => c.personal && c.favorite).length;
   const personalHighPriority = courriers.filter(c => c.personal && c.priority === 'high').length;
-  
+
   // Animation variants
   const listItemVariants = {
     hidden: { opacity: 0, y: 10 },
@@ -273,19 +278,19 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
 
   const refreshVariants = {
     initial: { rotate: 0 },
-    animate: { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: "linear" } }
+    animate: { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: 'linear' } }
   };
-  
+
   // Helper functions
   const getDepartmentColor = (dept) => {
     const colors = {
-      'RH': 'bg-purple-500',
-      'Finance': 'bg-blue-500',
-      'Technique': 'bg-green-500',
-      'Urbanisme': 'bg-orange-500',
-      'Communication': 'bg-pink-500',
-      'DG': 'bg-red-500',
-      'Sécurité': 'bg-gray-500'
+      'Ressources Humaines': 'bg-purple-500',
+      'Division Financière': 'bg-blue-500',
+      'Division Technique': 'bg-green-500',
+      'Bureau d\'Ordre': 'bg-gray-500',
+      'Direction Générale des Services': 'bg-red-500',
+      'Présidence': 'bg-yellow-500',
+      'Administration': 'bg-pink-500',
     };
     return colors[dept] || 'bg-gray-500';
   };
@@ -293,25 +298,31 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
   const getDepartmentInitials = (dept) => {
     return dept.substring(0, 2).toUpperCase();
   };
-  
+
   const getPriorityColor = (priority) => {
-    const colors = {
+    return {
       'high': 'text-red-500',
       'medium': 'text-orange-500',
       'low': 'text-green-500'
-    };
-    return colors[priority] || 'text-gray-500';
+    }[priority] || 'text-gray-500';
   };
-  
+
   const getPriorityLabel = (priority) => {
-    const labels = {
+    return {
       'high': 'Haute',
       'medium': 'Moyenne',
       'low': 'Basse'
-    };
-    return labels[priority] || 'Inconnue';
+    }[priority] || 'Inconnue';
   };
-  
+
+  if (loading) {
+    return <div className={`p-6 ${mainBg} ${textColor} min-h-screen`}>Chargement...</div>;
+  }
+
+  if (error) {
+    return <div className={`p-6 ${mainBg} ${textColor} min-h-screen`}>{error}</div>;
+  }
+
   return (
     <div className={`p-6 ${mainBg} ${textColor} min-h-screen`}>
       {/* Header section */}
@@ -352,11 +363,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
                 title={viewMode === 'compact' ? "Vue confortable" : "Vue compacte"}
               >
-                {viewMode === 'compact' ? (
-                  <Box size={20} />
-                ) : (
-                  <MoreHorizontal size={20} />
-                )}
+                {viewMode === 'compact' ? <Box size={20} /> : <MoreHorizontal size={20} />}
               </button>
               <button 
                 onClick={handleRefresh}
@@ -386,16 +393,12 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
               <span>Dernière mise à jour: aujourd'hui</span>
             </div>
           </div>
-          
-          {/* View toggle switch */}
           <div className="mt-6 flex justify-center">
             <div className="bg-white/10 rounded-full p-1 flex items-center">
               <button
                 onClick={() => setIsPersonalView(true)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  isPersonalView 
-                    ? 'bg-[#A78800] text-white' 
-                    : 'text-white/80 hover:bg-white/5'
+                  isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -406,9 +409,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
               <button
                 onClick={() => setIsPersonalView(false)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  !isPersonalView 
-                    ? 'bg-[#A78800] text-white' 
-                    : 'text-white/80 hover:bg-white/5'
+                  !isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -420,7 +421,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
           </div>
         </div>
       </div>
-      
+
       {/* Main container */}
       <div className={`${containerBg} rounded-xl shadow-xl overflow-hidden border ${borderColor}`}>
         {/* Toolbar section */}
@@ -430,50 +431,19 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
               onClick={handleSelectAll}
               className={`p-2 rounded-full ${hoverBg} transition-colors`}
             >
-              {selectAll ? (
-                <CheckSquare size={20} className={accentColor} />
-              ) : (
-                <Square size={20} className={subTextColor} />
-              )}
+              {selectAll ? <CheckSquare size={20} className={accentColor} /> : <Square size={20} className={subTextColor} />}
             </button>
-            
             {selectedCourriers.length > 0 ? (
               <div className="flex items-center gap-2">
                 <span className={`text-sm ${subTextColor} ml-2`}>
                   {selectedCourriers.length} sélectionné{selectedCourriers.length !== 1 ? 's' : ''}
                 </span>
                 <div className="h-6 w-px mx-2 bg-gray-300/20"></div>
-                <button 
-                  onClick={handleBulkUnarchive}
-                  className={`p-2 rounded-full ${hoverBg} transition-colors`}
-                  title="Désarchiver"
-                >
+                <button onClick={handleBulkUnarchive} className={`p-2 rounded-full ${hoverBg}`} title="Désarchiver">
                   <CornerUpLeft size={18} className={subTextColor} />
                 </button>
-                <button 
-                  onClick={handleBulkDelete}
-                  className={`p-2 rounded-full ${hoverBg} transition-colors`}
-                  title="Supprimer définitivement"
-                >
+                <button onClick={handleBulkDelete} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer définitivement">
                   <Trash2 size={18} className={subTextColor} />
-                </button>
-                <button 
-                  className={`p-2 rounded-full ${hoverBg} transition-colors`}
-                  title="Transférer"
-                >
-                  <Forward size={18} className={subTextColor} />
-                </button>
-                <button 
-                  className={`p-2 rounded-full ${hoverBg} transition-colors`}
-                  title="Exporter en PDF"
-                >
-                  <Download size={18} className={subTextColor} />
-                </button>
-                <button 
-                  className={`p-2 rounded-full ${hoverBg} transition-colors`}
-                  title="Imprimer"
-                >
-                  <Printer size={18} className={subTextColor} />
                 </button>
               </div>
             ) : (
@@ -481,40 +451,28 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 <div className="relative">
                   <button
                     onClick={() => setFilterOpen(!filterOpen)}
-                    className={`flex items-center gap-1 text-sm ${subTextColor} p-2 rounded-full ${hoverBg} transition-colors ml-1`}
+                    className={`flex items-center gap-1 text-sm ${subTextColor} p-2 rounded-full ${hoverBg}`}
                   >
                     <Filter size={16} />
-                    <span>
-                      {activeFilter === 'all' ? 'Tous les services' : activeFilter}
-                    </span>
+                    <span>{activeFilter === 'all' ? 'Tous les services' : activeFilter}</span>
                     <ChevronDown size={14} />
                   </button>
-                  
                   {filterOpen && (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className={`absolute top-full left-0 mt-1 w-48 ${containerBg} rounded-lg shadow-xl z-10 border ${borderColor} overflow-hidden`}
+                      className={`absolute top-full left-0 mt-1 w-48 ${containerBg} rounded-lg shadow-xl z-10 border ${borderColor}`}
                     >
                       <div className="p-2">
-                        <button 
-                          onClick={() => { setActiveFilter('all'); setFilterOpen(false); }}
-                          className={`px-3 py-2 text-sm w-full text-left rounded-lg ${activeFilter === 'all' ? 'bg-[#A78800]/20 text-[#A78800]' : textColor} hover:bg-[#A78800]/10 transition-colors flex items-center gap-2`}
-                        >
+                        <button onClick={() => { setActiveFilter('all'); setFilterOpen(false); }} className={`px-3 py-2 text-sm w-full text-left rounded-lg ${activeFilter === 'all' ? 'bg-[#A78800]/20 text-[#A78800]' : textColor} hover:bg-[#A78800]/10 flex items-center gap-2`}>
                           <Mail size={14} /> Tous les services
                         </button>
-                      </div>
-                      
-                      <div className={`h-px w-full ${borderColor} mx-auto`}></div>
-                      
-                      <div className="p-2">
-                        <div className="px-3 py-1 text-xs font-medium text-[#AAAAAA]">Services</div>
-                        {['RH', 'Finance', 'Technique', 'Urbanisme', 'Communication', 'DG', 'Sécurité'].map(dept => (
+                        {Object.keys(getDepartmentColor()).map(dept => (
                           <button
                             key={dept}
                             onClick={() => { setActiveFilter(dept); setFilterOpen(false); }}
-                            className={`px-3 py-2 text-sm w-full text-left rounded-lg ${activeFilter === dept ? 'bg-[#A78800]/20 text-[#A78800]' : textColor} hover:bg-[#A78800]/10 transition-colors flex items-center gap-2`}
+                            className={`px-3 py-2 text-sm w-full text-left rounded-lg ${activeFilter === dept ? 'bg-[#A78800]/20 text-[#A78800]' : textColor} hover:bg-[#A78800]/10 flex items-center gap-2`}
                           >
                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white ${getDepartmentColor(dept)}`}>
                               {getDepartmentInitials(dept)}
@@ -526,77 +484,25 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                     </motion.div>
                   )}
                 </div>
-                
                 <div className="relative">
                   <button
                     onClick={() => setPriorityFilter(priorityFilter === 'all' ? 'high' : priorityFilter === 'high' ? 'medium' : priorityFilter === 'medium' ? 'low' : 'all')}
-                    className={`flex items-center gap-1 text-sm p-2 rounded-full ${hoverBg} transition-colors ${
-                      priorityFilter !== 'all' ? getPriorityColor(priorityFilter) : subTextColor
-                    }`}
+                    className={`flex items-center gap-1 text-sm p-2 rounded-full ${hoverBg} ${priorityFilter !== 'all' ? getPriorityColor(priorityFilter) : subTextColor}`}
                   >
-                    {priorityFilter === 'all' ? (
-                      <>
-                        <AlertCircle size={16} />
-                        <span>Priorité: Toutes</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle size={16} />
-                        <span>Priorité: {getPriorityLabel(priorityFilter)}</span>
-                      </>
-                    )}
+                    <AlertCircle size={16} />
+                    <span>Priorité: {priorityFilter === 'all' ? 'Toutes' : getPriorityLabel(priorityFilter)}</span>
                   </button>
                 </div>
-                
                 <button
                   onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                  className={`flex items-center gap-1 text-sm p-2 rounded-full ${hoverBg} transition-colors ${showFavoritesOnly ? accentColor : subTextColor}`}
+                  className={`flex items-center gap-1 text-sm p-2 rounded-full ${hoverBg} ${showFavoritesOnly ? accentColor : subTextColor}`}
                 >
                   {showFavoritesOnly ? <Star size={16} /> : <StarOff size={16} />}
                   <span>{showFavoritesOnly ? 'Favoris' : 'Tous'}</span>
                 </button>
-                
-                <div className="relative">
-                  <button
-                    onClick={() => setShowTagsFilter(!showTagsFilter)}
-                    className={`flex items-center gap-1 text-sm p-2 rounded-full ${hoverBg} transition-colors ${showTagsFilter ? accentColor : subTextColor}`}
-                  >
-                    <Tag size={16} />
-                    <span>Tags</span>
-                    <ChevronDown size={14} />
-                  </button>
-                  
-                  {showTagsFilter && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className={`absolute top-full left-0 mt-1 w-52 ${containerBg} rounded-lg shadow-xl z-10 border ${borderColor} overflow-hidden`}
-                    >
-                      <div className="p-2">
-                        <div className="px-3 py-1 text-xs font-medium text-[#AAAAAA]">Tags populaires</div>
-                        {['Budget', 'Réunions', 'Évaluations', 'Plans', 'Statistiques', 'Marketing'].map(tag => (
-                          <button
-                            key={tag}
-                            onClick={() => { 
-                              setSearchQuery(tag);
-                              setShowTagsFilter(false);
-                            }}
-                            className={`px-3 py-2 text-sm w-full text-left rounded-lg ${textColor} hover:bg-[#A78800]/10 transition-colors flex items-center gap-2`}
-                          >
-                            <Tag size={14} />
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
               </>
             )}
           </div>
-          
-          {/* Search bar */}
           <div className="relative">
             <div className={`flex items-center bg-gray-100/10 rounded-lg border ${borderColor} px-3 py-2`}>
               <Search size={18} className={subTextColor} />
@@ -608,17 +514,14 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="text-gray-400 hover:text-gray-600"
-                >
+                <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-gray-600">
                   <X size={16} />
                 </button>
               )}
             </div>
           </div>
         </div>
-        
+
         {/* Advanced filter section - Date range */}
         <div className={`px-4 py-3 border-b ${borderColor} flex items-center gap-4 flex-wrap`}>
           <div className="flex items-center gap-2">
@@ -626,22 +529,20 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
             <span className={`text-sm ${subTextColor}`}>Période:</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {['Tous', '7 derniers jours', '30 derniers jours', '3 derniers mois', '6 derniers mois'].map(period => (
+            {['all', '7 derniers jours', '30 derniers jours', '3 derniers mois', '6 derniers mois'].map(period => (
               <button
                 key={period}
                 onClick={() => setDateRangeFilter(period)}
                 className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                  dateRangeFilter === period
-                    ? 'bg-[#A78800] text-white'
-                    : `${hoverBg} ${textColor} border ${borderColor}`
+                  dateRangeFilter === period ? 'bg-[#A78800] text-white' : `${hoverBg} ${textColor} border ${borderColor}`
                 }`}
               >
-                {period}
+                {period === 'all' ? 'Tous' : period}
               </button>
             ))}
           </div>
         </div>
-        
+
         {/* Courrier list */}
         {filteredCourriers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
@@ -664,7 +565,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 setPriorityFilter('all');
                 setDateRangeFilter('all');
               }}
-              className={`mt-4 px-4 py-2 rounded-lg ${accentBg} text-white text-sm hover:bg-opacity-90 transition-colors`}
+              className={`mt-4 px-4 py-2 rounded-lg ${accentBg} text-white text-sm hover:bg-opacity-90`}
             >
               Réinitialiser les filtres
             </button>
@@ -678,176 +579,103 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 initial="hidden"
                 animate="visible"
                 exit="exit"
+                className={`flex items-start p-4 border-b ${borderColor} ${
+                  selectedCourriers.includes(courrier.id) ? 'bg-[#A78800]/5' : hoverBg
+                } group`}
                 onMouseEnter={() => setHoveredCourrier(courrier.id)}
                 onMouseLeave={() => setHoveredCourrier(null)}
-                className={`border-b ${borderColor} ${hoverBg} transition-all relative ${
-                  selectedCourriers.includes(courrier.id) ? 'bg-[#A78800]/10' : ''
-                }`}
               >
-                <div className={`flex items-start p-4 ${viewMode === 'comfortable' ? 'gap-6' : 'gap-3'}`}>
-                  {/* Left section with checkbox and star */}
-                  <div className="flex flex-col items-center gap-3">
-                    <button 
-                      onClick={() => handleSelect(courrier.id)}
-                      className="flex-shrink-0"
-                    >
-                      {selectedCourriers.includes(courrier.id) ? (
-                        <CheckSquare size={18} className={accentColor} />
-                      ) : (
-                        <Square size={18} className={subTextColor} />
-                      )}
-                    </button>
-                    
-                    <button 
-                      onClick={() => handleFavoriteToggle(courrier.id)}
-                      className="flex-shrink-0 text-gray-400 hover:text-yellow-400 transition-colors"
-                    >
-                      {courrier.favorite ? (
-                        <Star size={18} className="text-[#A78800] fill-[#A78800]" />
-                      ) : (
-                        <Star size={18} className={subTextColor} />
-                      )}
-                    </button>
-                  </div>
-                  
-                  {/* Department badge */}
-                  <div className="flex-shrink-0">
-                    <div className={`w-10 h-10 rounded-full ${getDepartmentColor(courrier.department)} text-white flex items-center justify-center font-medium text-sm`}>
-                      {getDepartmentInitials(courrier.department)}
-                    </div>
-                  </div>
-                  
-                  {/* Courrier content */}
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className={`font-medium ${textColor} truncate`}>
-                        {courrier.sender}
-                      </h3>
-                      <span className={`text-xs ${subTextColor}`}>
-                        {courrier.archivedBy === 'Vous' ? 'Archivé par vous' : `Archivé par ${courrier.archivedBy}`}
-                      </span>
-                      
-                      {/* Priority indicator */}
-                      <div className={`px-2 py-0.5 rounded-full text-xs ${getPriorityColor(courrier.priority)} bg-opacity-10 ${
-                        courrier.priority === 'high' ? 'bg-red-100' : 
-                        courrier.priority === 'medium' ? 'bg-orange-100' : 
-                        'bg-green-100'
-                      }`}>
-                        {getPriorityLabel(courrier.priority)}
-                      </div>
-                      
-                      {/* Attachment indicator */}
-                      {courrier.attachments > 0 && (
-                        <div className={`flex items-center gap-1 text-xs ${subTextColor}`}>
-                          <FileText size={12} />
-                          <span>{courrier.attachments}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <h2 className={`font-medium ${textColor} mb-1`}>
-                      {courrier.subject}
-                    </h2>
-                    
-                    <p className={`text-sm ${subTextColor} ${viewMode === 'compact' ? 'line-clamp-1' : 'line-clamp-2'}`}>
-                      {courrier.content}
-                    </p>
-                    
-                    {/* Tags */}
-                    {courrier.tags && courrier.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {courrier.tags.map(tag => (
-                          <span 
-                            key={tag} 
-                            className={`inline-block px-2 py-0.5 bg-gray-100 ${darkMode ? 'bg-opacity-10' : ''} rounded-full text-xs ${subTextColor}`}
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
+                <div className="flex items-center mr-3">
+                  <button onClick={() => handleSelect(courrier.id)} className="p-2 rounded-full hover:bg-black/5">
+                    {selectedCourriers.includes(courrier.id) ? (
+                      <CheckSquare size={18} className={accentColor} />
+                    ) : (
+                      <Square size={18} className={subTextColor} />
                     )}
-                    
-                    {/* Dates information */}
-                    <div className="flex items-center gap-3 mt-2 text-xs">
-                      <div className={`flex items-center gap-1 ${subTextColor}`}>
-                        <Calendar size={12} />
-                        <span>Date originale: {courrier.originalDate}</span>
+                  </button>
+                </div>
+                <div className="mr-3">
+                  <button onClick={() => handleFavoriteToggle(courrier.id)} className="p-2 rounded-full hover:bg-black/5">
+                    {courrier.favorite ? (
+                      <Star size={18} className="text-[#A78800]" />
+                    ) : (
+                      <StarOff size={18} className={subTextColor} />
+                    )}
+                  </button>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-6 w-6 rounded-full ${getDepartmentColor(courrier.department)} flex items-center justify-center text-xs text-white`}>
+                        {getDepartmentInitials(courrier.department)}
                       </div>
-                      <div className={`flex items-center gap-1 ${subTextColor}`}>
-                        <Archive size={12} />
-                        <span>Archivé le: {courrier.dateArchived}</span>
-                      </div>
+                      <span className={`${textColor}`}>{courrier.sender}</span>
+                      <span className={`text-xs ${subTextColor}`}>
+                        {courrier.archivedBy === userData.email ? 'Archivé par vous' : `Archivé par ${courrier.archivedBy}`}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${getPriorityColor(courrier.priority)}`}>
+                        {getPriorityLabel(courrier.priority)}
+                      </span>
                     </div>
                   </div>
-                  
-                  {/* Action buttons - visible on hover */}
-                  <div 
-                    className={`flex items-center gap-1 transition-opacity ${
-                      hoveredCourrier === courrier.id ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  >
-                    <button
-                      onClick={() => handleUnarchive(courrier.id)}
-                      className={`p-1.5 rounded-full ${hoverBg} transition-colors`}
-                      title="Désarchiver"
-                    >
-                      <CornerUpLeft size={16} className={subTextColor} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(courrier.id)}
-                      className={`p-1.5 rounded-full ${hoverBg} transition-colors`}
-                      title="Supprimer définitivement"
-                    >
-                      <Trash2 size={16} className={subTextColor} />
-                    </button>
-                    <button
-                      className={`p-1.5 rounded-full ${hoverBg} transition-colors`}
-                      title="Transférer"
-                    >
-                      <Forward size={16} className={subTextColor} />
-                    </button>
-                    <button
-                      className={`p-1.5 rounded-full ${hoverBg} transition-colors`}
-                      title="Voir les détails"
-                    >
-                      <Eye size={16} className={subTextColor} />
-                    </button>
+                  <h3 className={`text-base font-medium mb-1 truncate ${textColor}`}>
+                    {courrier.subject}
+                  </h3>
+                  <p className={`text-sm ${subTextColor} line-clamp-${viewMode === 'comfortable' ? '2' : '1'}`}>
+                    {courrier.content}
+                  </p>
+                  <div className="mt-2 flex items-center gap-3 text-xs">
+                    <span className={subTextColor}>Date originale: {courrier.originalDate}</span>
+                    <span className={subTextColor}>Archivé le: {courrier.dateArchived}</span>
+                    {courrier.attachments > 0 && (
+                      <span className={`flex items-center gap-1 ${subTextColor}`}>
+                        <Bookmark size={14} />
+                        {courrier.attachments} pièce{courrier.attachments > 1 ? 's' : ''} jointe{courrier.attachments > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
+                </div>
+                <div className={`flex flex-col items-end gap-3 ml-4 ${hoveredCourrier === courrier.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                  {hoveredCourrier === courrier.id ? (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleUnarchive(courrier.id)} className={`p-2 rounded-full ${hoverBg}`} title="Désarchiver">
+                        <CornerUpLeft size={16} className={subTextColor} />
+                      </button>
+                      <button onClick={() => handleDelete(courrier.id)} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer définitivement">
+                        <Trash2 size={16} className={subTextColor} />
+                      </button>
+                      <button onClick={() => {}} className={`p-2 rounded-full ${hoverBg}`} title="Voir les détails">
+                        <Eye size={16} className={subTextColor} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${subTextColor}`}>
+                      {courrier.dateArchived}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
         )}
-        
-        {/* Pagination and footer */}
-        <div className={`p-4 flex items-center justify-between ${textColor} border-t ${borderColor}`}>
+
+        {/* Pagination footer */}
+        <div className={`py-3 px-4 flex items-center justify-between border-t ${borderColor}`}>
           <div className={`text-sm ${subTextColor}`}>
             Affichage de {filteredCourriers.length} sur {totalCount} courriers archivés
           </div>
-          
-          <div className="flex items-center gap-1">
-            <button className={`px-3 py-1 rounded-lg text-sm ${hoverBg} transition-colors ${subTextColor}`}>Précédent</button>
-            <button className={`px-3 py-1 rounded-lg text-sm bg-[#A78800] text-white transition-colors`}>1</button>
-            <button className={`px-3 py-1 rounded-lg text-sm ${hoverBg} transition-colors ${subTextColor}`}>2</button>
-            <button className={`px-3 py-1 rounded-lg text-sm ${hoverBg} transition-colors ${subTextColor}`}>3</button>
-            <span className={`text-sm ${subTextColor}`}>...</span>
-            <button className={`px-3 py-1 rounded-lg text-sm ${hoverBg} transition-colors ${subTextColor}`}>Suivant</button>
-          </div>
-          
           <div className="flex items-center gap-2">
-            <select 
-              className={`px-3 py-1 rounded-lg text-sm ${containerBg} border ${borderColor} ${textColor}`}
-              defaultValue="10"
-            >
-              <option value="10">10 par page</option>
-              <option value="25">25 par page</option>
-              <option value="50">50 par page</option>
-              <option value="100">100 par page</option>
-            </select>
+            <button className={`px-3 py-1 text-sm rounded-md ${textColor} hover:bg-gray-100/10 disabled:opacity-50`} disabled={true}>
+              Précédent
+            </button>
+            <span className={`inline-flex items-center justify-center h-8 w-8 rounded-md ${accentBg} text-white text-sm`}>1</span>
+            <button className={`px-3 py-1 text-sm rounded-md ${textColor} hover:bg-gray-100/10 disabled:opacity-50`} disabled={true}>
+              Suivant
+            </button>
           </div>
         </div>
       </div>
-      
+
       {/* Analytics summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         {isPersonalView ? (
@@ -866,13 +694,13 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Archivés par vous</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && c.archivedBy === 'Vous').length}
+                    {courriers.filter(c => c.personal && c.archivedBy === userData.email).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Archivés par d'autres</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && c.archivedBy !== 'Vous').length}
+                    {courriers.filter(c => c.personal && c.archivedBy !== userData.email).length}
                   </span>
                 </div>
                 <div className="mt-4 p-3 rounded-lg bg-gray-100/10 border ${borderColor}">
@@ -921,12 +749,14 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Cette semaine</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && c.dateArchived.includes('Mars')).length}
+                    {courriers.filter(c => c.personal && new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Ce mois</span>
-                  <span className={`text-sm font-medium ${textColor}`}>{personalCount}</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => c.personal && new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Priorité haute</span>
@@ -955,7 +785,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 <FileText size={18} className={subTextColor} />
               </div>
               <div className="space-y-3">
-                {['RH', 'Finance', 'Technique', 'Urbanisme', 'Communication', 'DG', 'Sécurité'].map(dept => {
+                {Object.keys(getDepartmentColor()).map(dept => {
                   const count = courriers.filter(c => c.department === dept).length;
                   const percentage = Math.round((count / courriers.length) * 100) || 0;
                   return (
@@ -978,7 +808,7 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                 })}
               </div>
             </div>
-            
+
             <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-medium ${textColor}`}>Répartition par priorité</h3>
@@ -1006,14 +836,14 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
                         {getPriorityLabel(priority)}
                       </div>
                       <div className={`text-xs ${subTextColor}`}>
-                        {count} ({Math.round((count / courriers.length) * 100)}%)
+                        {count} ({Math.round((count / courriers.length) * 100) || 0}%)
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-            
+
             <div className={`${containerBg} rounded-xl p-5 border ${borderColor} shadow-sm`}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`font-medium ${textColor}`}>Activité globale</h3>
@@ -1022,11 +852,15 @@ const CourrierArchived = ({ userData = { role: 'directeur', department: 'Finance
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Cette semaine</span>
-                  <span className={`text-sm font-medium ${textColor}`}>3</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Ce mois</span>
-                  <span className={`text-sm font-medium ${textColor}`}>12</span>
+                  <span className={`text-sm font-medium ${textColor}`}>
+                    {courriers.filter(c => new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Archives personnelles</span>

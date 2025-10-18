@@ -1,4 +1,3 @@
-// Backend/scripts/addUsers.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
@@ -24,12 +23,12 @@ const users = [
     password: 'dgs123', 
     department: 'Direction Générale des Services', 
     role: 'dgs', 
-    permissions: ['create:courrier', 'read:courrier', 'update:courrier', 'assign:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier', 'delete:courrier', 'assign:courrier'] 
   },
   { 
     email: 'bo@commune.org', 
     password: 'bo123', 
-    department: 'Bureau d’Ordre', // Fixed: Use ’ instead of '
+    department: 'Bureau d’Ordre', 
     role: 'bo', 
     permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
@@ -38,14 +37,14 @@ const users = [
     password: 'sc123', 
     department: 'Secrétariat du Conseil', 
     role: 'sc', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'sp@commune.org', 
     password: 'sp123', 
     department: 'Secrétariat du Président', 
     role: 'sp', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'rh@commune.org', 
@@ -59,35 +58,35 @@ const users = [
     password: 'dfm123', 
     department: 'Division Financière', 
     role: 'dfm', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'dt@commune.org', 
     password: 'dt123', 
     department: 'Division Technique', 
     role: 'dt', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'bh@commune.org', 
     password: 'bh123', 
-    department: 'Bureau d’Hygiène', // Fixed: Use ’ instead of '
+    department: 'Bureau d’Hygiène', 
     role: 'bh', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'pc@commune.org', 
     password: 'pc123', 
     department: 'Partenariat et Coopération', 
     role: 'pc', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'ic@commune.org', 
     password: 'ic123', 
     department: 'Informatique et Communication', 
     role: 'ic', 
-    permissions: ['read:courrier', 'update:courrier'] 
+    permissions: ['create:courrier', 'read:courrier', 'update:courrier'] 
   },
   { 
     email: 'admin@commune.org', 

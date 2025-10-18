@@ -2,18 +2,18 @@ const mongoose = require('mongoose');
 const Mail = require('../models/Mail');
 const User = require('../models/User');
 
-// Define allowed departments per role (mirrors frontend logic)
+// allowed departements's names:
 const getAllowedReceiverDepartments = (role) => {
   const allDepartments = [
     'Présidence',
     'Direction Générale des Services',
-    'Bureau d\'Ordre',
+    'Bureau d’Ordre', // Curly quote
     'Secrétariat du Conseil',
     'Secrétariat du Président',
     'Ressources Humaines',
     'Division Financière',
     'Division Technique',
-    'Bureau d\'Hygiène',
+    'Bureau d’Hygiène', // Curly quote
     'Partenariat et Coopération',
     'Informatique et Communication',
     'Administration'
@@ -23,7 +23,7 @@ const getAllowedReceiverDepartments = (role) => {
     case 'president':
     case 'dgs':
     case 'admin':
-      return allDepartments; // Can communicate with all
+      return allDepartments;
     case 'bo':
       return ['Direction Générale des Services'];
     case 'sc':
@@ -34,26 +34,38 @@ const getAllowedReceiverDepartments = (role) => {
     case 'bh':
     case 'pc':
     case 'ic':
-      return ['Bureau d\'Ordre', 'Direction Générale des Services'];
+      return ['Bureau d’Ordre', 'Direction Générale des Services']; // Curly quote
     default:
       return []; // No permissions
   }
 };
 
+// Backend/controllers/mailController.js
 exports.createMail = async (req, res) => {
   try {
     const { type, subject, content, receiverDepartments } = req.body;
     const sender = req.user.userId;
+    const senderRole = req.user.role;
 
     const parsedReceiverDepartments = JSON.parse(receiverDepartments || '[]');
-    // No normalization needed since NewCourrierModal now uses curly quotes
+    const allowedDepartments = getAllowedReceiverDepartments(senderRole);
+
+    // Check if all requested receiver departments are allowed for this role
+    const invalidDepartments = parsedReceiverDepartments.filter(
+      dept => !allowedDepartments.includes(dept)
+    );
+    if (invalidDepartments.length > 0) {
+      return res.status(403).json({
+        error: `Vous n'êtes pas autorisé à envoyer à : ${invalidDepartments.join(', ')}`,
+      });
+    }
 
     const mail = new Mail({
       type: type || 'officiel',
       subject,
       content,
       sender,
-      receiverDepartments: parsedReceiverDepartments, // Should be ["Bureau d’Ordre"]
+      receiverDepartments: parsedReceiverDepartments,
       attachments: [],
       status: 'en_attente',
       section: 'inbox',
@@ -101,7 +113,7 @@ exports.getAllMails = async (req, res) => {
       filter.status = 'en_attente';
     } else if (req.query.section === 'archives') {
       if (['admin', 'dgs'].includes(userRole)) {
-        filter.section = 'archives'; // Centralized view for admin/dgs
+        filter.section = 'archives'; // Centralized view for admin and dgs
       } else {
         filter.$or = [
           { sender: userId },
@@ -111,7 +123,6 @@ exports.getAllMails = async (req, res) => {
       }
     }
 
-    // Remove restrictive role-based filter for non-privileged roles
     console.log('Fetching mails with filter:', filter, 'for user:', { userId, userDepartment, userRole });
 
     const mails = await Mail.find(filter)
@@ -175,20 +186,20 @@ exports.updateMailStatus = async (req, res) => {
   }
 };
 
-// Add this to mailController.js
+
 exports.updateMail = async (req, res) => {
   try {
     const mail = await Mail.findById(req.params.id);
     if (!mail) return res.status(404).json({ error: 'Courrier introuvable' });
 
-    // Check if user has permission (sender or receiver department match)
+    // permission checker for updating mail
     const isSender = mail.sender.toString() === req.user.userId;
     const isReceiver = mail.receiverDepartments.includes(req.user.department);
     if (!isSender && !isReceiver && !['admin', 'dgs'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Action non autorisée' });
     }
 
-    // Update only allowed fields (e.g., favorite, isRead)
+
     const updates = {};
     if (typeof req.body.favorite !== 'undefined') updates.favorite = req.body.favorite;
     if (typeof req.body.isRead !== 'undefined') updates.isRead = req.body.isRead;

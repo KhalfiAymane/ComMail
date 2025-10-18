@@ -1,4 +1,4 @@
-// Backend/controllers/authController.js
+
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
@@ -29,7 +29,7 @@ exports.login = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
+//register with roles and permissions
 exports.register = async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Accès refusé' });
@@ -42,7 +42,7 @@ exports.register = async (req, res) => {
       email,
       password: hashedPassword,
       department,
-      role, // Include role
+      role, 
       permissions: permissions || ['read:courrier']
     });
 

@@ -30,13 +30,13 @@ const mailSchema = new mongoose.Schema({
     enum: [
       'Présidence',
       'Direction Générale des Services',
-      'Bureau d’Ordre', // Updated to curly quotes
+      'Bureau d’Ordre', 
       'Secrétariat du Conseil',
       'Secrétariat du Président',
       'Ressources Humaines',
       'Division Financière',
       'Division Technique',
-      'Bureau d’Hygiène', // Updated to curly quotes
+      'Bureau d’Hygiène', 
       'Partenariat et Coopération',
       'Informatique et Communication',
       'Administration'

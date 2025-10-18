@@ -81,8 +81,7 @@ router.post('/:id/reset-password', auth, checkRole(['admin']), async (req, res) 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
-    // In a real app, send `newPassword` via email here
-    res.json({ message: 'Mot de passe réinitialisé avec succès', newPassword }); // For testing
+    res.json({ message: 'Mot de passe réinitialisé avec succès', newPassword }); // testing
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }

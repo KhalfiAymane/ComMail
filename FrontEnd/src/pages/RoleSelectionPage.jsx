@@ -18,7 +18,7 @@ const RoleSelectionPage = () => {
     { id: "rh", title: "RESSOURCES HUMAINES", icon: <FaUsers className="text-orange-400" /> },
     { id: "dfm", title: "DIVISION FINANCIÈRE", icon: <FaMoneyBillWave className="text-green-300" /> },
     { id: "dt", title: "DIVISION TECHNIQUE", icon: <FaTools className="text-gray-400" /> },
-    { id: "bh", title: "BUREAU D'HYGIÈNE", icon: <FaBriefcaseMedical className="text-blue-300" /> },
+    { id: "bh", title: "BUREAU DH'YGIÈNE", icon: <FaBriefcaseMedical className="text-blue-300" /> },
     { id: "pc", title: "PARTENARIAT ET COOPÉRATION", icon: <FaHandshake className="text-pink-400" /> },
     { id: "ic", title: "INFORMATIQUE ET COMMUNICATION", icon: <FaLaptopCode className="text-teal-400" /> },
     { id: "admin", title: "ADMINISTRATEUR", icon: <FaCog className="text-gray-300" /> },

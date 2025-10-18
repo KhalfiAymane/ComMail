@@ -1,4 +1,3 @@
-// Backend/routes/mailRoutes.js
 const express = require('express');
 const router = express.Router();
 const { auth, checkRole } = require('../middleware/auth');
@@ -16,7 +15,7 @@ router.get('/mails-and-counts', auth, async (req, res) => {
   console.log('Reached /mails-and-counts endpoint');
   try {
     const userId = req.user.userId;
-    const userDepartment = req.user.department; // "Bureau d’Ordre" with curly quotes
+    const userDepartment = req.user.department;
     const role = req.user.role;
 
     const { section, type, receiverDepartments, status, subject } = req.query;
@@ -25,7 +24,7 @@ router.get('/mails-and-counts', auth, async (req, res) => {
     if (section === 'sent') {
       filter.sender = userId;
     } else if (section === 'inbox') {
-      filter.receiverDepartments = userDepartment; // Exact match for "Bureau d’Ordre"
+      filter.receiverDepartments = userDepartment;
     } else if (section === 'drafts') {
       filter.sender = userId;
       filter.status = 'en_attente';
@@ -54,7 +53,10 @@ router.get('/mails-and-counts', auth, async (req, res) => {
     const courriers = await Mail.find(filter)
       .populate('sender', 'email department role')
       .populate('archivedBy', 'email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .catch(err => {
+        throw new Error(`Failed to fetch courriers: ${err.message}`);
+      });
 
     console.log('Courriers found:', courriers.length, 'Data:', courriers);
 
@@ -83,13 +85,15 @@ router.get('/mails-and-counts', auth, async (req, res) => {
         countFilter.status = 'en_attente';
         countFilter.receiverDepartments = userDepartment;
       }
-      counts[sec] = await Mail.countDocuments(countFilter);
+      counts[sec] = await Mail.countDocuments(countFilter).catch(err => {
+        throw new Error(`Failed to count ${sec}: ${err.message}`);
+      });
     }
 
     res.json({ courriers, counts });
   } catch (err) {
     console.error('Error in /mails-and-counts:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: `Erreur serveur: ${err.message}` });
   }
 });
 
@@ -136,16 +140,16 @@ router.get('/counts', auth, async (req, res) => {
   }
 });
 
-// Create a mail with attachments (roles allowed to create mails)
+
+// Backend/routes/mailRoutes.js
 router.post(
   '/',
-  auth,
-  checkRole(['president', 'dgs', 'bo', 'rh', 'admin']),
+  auth, // Only require authentication
   upload.array('attachments', 5),
   createMail
 );
 
-// Validate a mail (PATCH route)
+
 router.patch(
   '/:id/validate',
   auth,
@@ -153,10 +157,9 @@ router.patch(
   validateMail
 );
 
-// Update mail status or section (PUT route for validate/reject/archive)
 router.put('/:id/status', auth, updateMailStatus);
 router.put('/:id', auth, updateMail);
-// Delete a mail
+
 router.delete('/:id', auth, async (req, res) => {
   try {
     const mail = await Mail.findById(req.params.id);
@@ -172,7 +175,7 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// List all mails with filters
+
 router.get('/', auth, getAllMails);
 
 module.exports = router;

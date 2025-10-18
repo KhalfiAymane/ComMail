@@ -13,13 +13,13 @@ const API_URL = 'http://localhost:5000/api';
 const allDepartments = [
   { value: 'Présidence', label: 'Présidence' },
   { value: 'Direction Générale des Services', label: 'Direction Générale des Services' },
-  { value: 'Bureau d’Ordre', label: 'Bureau d’Ordre' }, // Curly quotes
+  { value: 'Bureau d’Ordre', label: 'Bureau d’Ordre' }, 
   { value: 'Secrétariat du Conseil', label: 'Secrétariat du Conseil' },
   { value: 'Secrétariat du Président', label: 'Secrétariat du Président' },
   { value: 'Ressources Humaines', label: 'Ressources Humaines' },
   { value: 'Division Financière', label: 'Division Financière' },
   { value: 'Division Technique', label: 'Division Technique' },
-  { value: 'Bureau d’Hygiène', label: 'Bureau d’Hygiène' }, // Curly quotes
+  { value: 'Bureau d’Hygiène', label: 'Bureau d’Hygiène' }, 
   { value: 'Partenariat et Coopération', label: 'Partenariat et Coopération' },
   { value: 'Informatique et Communication', label: 'Informatique et Communication' },
   { value: 'Administration', label: 'Administration' }
@@ -76,14 +76,12 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
   const [senderRole, setSenderRole] = useState('');
   const [senderDepartment, setSenderDepartment] = useState('');
 
-  // Fetch user role and department on mount
+  const isForward = initialData?.isForward;
+
   useEffect(() => {
     const fetchUserData = async () => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No token found');
-        return;
-      }
+      if (!token) return;
 
       try {
         const response = await axios.get('http://localhost:5000/api/users/profile', {
@@ -97,7 +95,6 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
           senderDepartment: response.data.department
         }));
       } catch (err) {
-        console.error('Error fetching user data:', err.response?.data || err.message);
         setErrors({ fetch: 'Erreur lors du chargement des données utilisateur' });
       }
     };
@@ -159,6 +156,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
   };
 
   const handleInputChange = (e) => {
+    if (isForward) return; // Prevent changes in forward mode
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     if (errors[name]) setErrors({ ...errors, [name]: '' });
@@ -176,6 +174,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
   };
 
   const handleFileUpload = (e) => {
+    if (isForward) return; // No new attachments in forward mode
     const newFiles = Array.from(e.target.files);
     const fileObjects = newFiles.map(file => ({
       name: file.name,
@@ -188,6 +187,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
   };
 
   const removeAttachment = (index) => {
+    if (isForward) return; // No attachment removal in forward mode
     const newAttachments = [...formData.attachments];
     if (newAttachments[index].preview) URL.revokeObjectURL(newAttachments[index].preview);
     newAttachments.splice(index, 1);
@@ -244,13 +244,14 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
       setSubmitting(false);
       onClose(response.data);
     } catch (err) {
-      console.error('Error submitting courrier:', err.response?.data || err.message);
       setErrors({ submit: err.response?.data?.error || 'Échec de l’envoi du courrier - Erreur réseau' });
       setSubmitting(false);
     }
   };
 
-  const triggerFileUpload = () => fileInputRef.current.click();
+  const triggerFileUpload = () => {
+    if (!isForward) fileInputRef.current.click();
+  };
 
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95 },
@@ -290,7 +291,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                 <div className="bg-white/20 w-10 h-10 rounded-lg flex items-center justify-center">
                   <FaEnvelope className="text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-white">Nouveau Courrier</h2>
+                <h2 className="text-xl font-bold text-white">{isForward ? 'Transférer le Courrier' : 'Nouveau Courrier'}</h2>
               </div>
               <button 
                 onClick={() => onClose(null)}
@@ -334,6 +335,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                               flex-1 border ${borderColor} rounded-lg p-3 cursor-pointer
                               transition-all duration-200
                               ${formData.type === type.id ? 'ring-2 ring-[#A78800] border-[#A78800]' : 'hover:border-[#A78800]/50'}
+                              ${isForward ? 'pointer-events-none opacity-70' : ''}
                             `}
                           >
                             <input
@@ -343,6 +345,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                               checked={formData.type === type.id}
                               onChange={handleInputChange}
                               className="sr-only"
+                              disabled={isForward}
                             />
                             <div 
                               className={`
@@ -381,8 +384,10 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           focus:ring-[#A78800]/30 focus:border-[#A78800]
                           transition-all duration-200 outline-none
                           ${errors.subject ? 'border-red-500 ring-1 ring-red-500' : ''}
+                          ${isForward ? 'pointer-events-none opacity-70' : ''}
                         `}
                         maxLength={200}
+                        disabled={isForward}
                       />
                       {errors.subject && <p className="text-red-500 text-xs mt-1">{errors.subject}</p>}
                       <p className={`text-xs mt-1 ${subTextColor}`}>{formData.subject.length}/200 caractères</p>
@@ -430,7 +435,9 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           focus:ring-[#A78800]/30 focus:border-[#A78800]
                           transition-all duration-200 outline-none resize-none
                           ${errors.content ? 'border-red-500 ring-1 ring-red-500' : ''}
+                          ${isForward ? 'pointer-events-none opacity-70' : ''}
                         `}
+                        disabled={isForward}
                       />
                       {errors.content && <p className="text-red-500 text-xs mt-1">{errors.content}</p>}
                     </div>
@@ -446,6 +453,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           border-2 border-dashed ${borderColor} rounded-lg p-6
                           text-center cursor-pointer transition-all duration-200
                           hover:border-[#A78800]/50 hover:bg-[#A78800]/5
+                          ${isForward ? 'pointer-events-none opacity-70' : ''}
                         `}
                       >
                         <input
@@ -454,17 +462,18 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                           onChange={handleFileUpload}
                           multiple
                           className="hidden"
+                          disabled={isForward}
                         />
                         <FaPaperclip className={`mx-auto mb-2 ${subTextColor}`} size={24} />
-                        <p className={`text-sm ${textColor}`}>Cliquez pour télécharger ou glisser-déposer</p>
-                        <p className={`text-xs ${subTextColor} mt-1`}>PDF, DOC, DOCX, JPG, PNG (max 10MB chacun)</p>
+                        <p className={`text-sm ${textColor}`}>{isForward ? 'Pièces jointes existantes' : 'Cliquez pour télécharger ou glisser-déposer'}</p>
+                        <p className={`text-xs ${subTextColor} mt-1`}>{isForward ? '' : 'PDF, DOC, DOCX, JPG, PNG (max 10MB chacun)'}</p>
                       </div>
                       {formData.attachments?.length > 0 && (
                         <div className="mt-4 space-y-2 max-h-40 overflow-y-auto pr-2">
                           {formData.attachments.map((file, index) => (
                             <div 
                               key={index}
-                              className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-[#2D2D2D]' : 'bg-gray-100'}`}
+                              className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-[#2D2D2D]' : 'bg-gray-100'} ${isForward ? 'pointer-events-none' : ''}`}
                             >
                               <div className="flex items-center space-x-3 overflow-hidden">
                                 <div className="flex-shrink-0">{getFileIcon(file.type)}</div>
@@ -473,13 +482,15 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                                   <p className={`text-xs ${subTextColor}`}>{file.size ? formatFileSize(file.size) : 'Fichier existant'}</p>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeAttachment(index); }}
-                                className="ml-2 p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
-                              >
-                                <FaTimes size={14} />
-                              </button>
+                              {!isForward && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeAttachment(index); }}
+                                  className="ml-2 p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500"
+                                >
+                                  <FaTimes size={14} />
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -520,7 +531,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                       )}
                       <div className="relative z-10 flex items-center space-x-2">
                         <FaCheck size={14} />
-                        <span>{submitting ? 'Envoi...' : 'Envoyer le Courrier'}</span>
+                        <span>{submitting ? 'Envoi...' : isForward ? 'Transférer' : 'Envoyer le Courrier'}</span>
                       </div>
                       <div className="absolute bottom-0 left-0 h-1 bg-white/20 w-full transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300"></div>
                     </button>
@@ -528,6 +539,7 @@ const NewCourrierModal = ({ isOpen, onClose, initialData }) => {
                 </form>
               ) : (
                 <div className="bg-white dark:bg-[#26272B] rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg p-6 mb-4">
+                  {/* Preview content remains unchanged */}
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h3 className="text-xl font-bold bg-gradient-to-r from-[#A78800] to-[#D4AF37] bg-clip-text text-transparent">

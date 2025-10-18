@@ -1,10 +1,9 @@
-// src/contexts/ThemeContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import useDebouncedNavigate from '../hooks/useDebouncedNavigate';
 
 // Create the context
 const ThemeContext = createContext();
 
-// Custom hook to use the theme context
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
@@ -13,30 +12,41 @@ export const useTheme = () => {
   return context;
 };
 
-// Theme Provider with expanded color palette
+const ThemeNavigator = ({ children, darkMode, toggleDarkMode, colors }) => {
+  const debouncedNavigate = useDebouncedNavigate();
+
+  const value = {
+    darkMode,
+    toggleDarkMode,
+    colors,
+    debouncedNavigate,
+  };
+
+  return (
+    <ThemeContext.Provider value={value}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
 export const ThemeProvider = ({ children }) => {
-  // Get user preference from storage
   const [darkMode, setDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('darkMode');
     if (savedTheme !== null) {
       return JSON.parse(savedTheme);
     }
-    return false; // Default to light mode
+    return false;
   });
 
-  // Update localStorage when mode changes
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
 
-  // Toggle between dark and light modes
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
 
-  // Enhanced color palette
   const colors = {
-    // Core colors (existing)
     primary: '#A78800',
     secondary: '#4C4C4C',
     darkBg: '#131313',
@@ -45,21 +55,15 @@ export const ThemeProvider = ({ children }) => {
     lightText: '#FFFFFF',
     darkText: '#131313',
     mutedText: '#AAAAAA',
-    
-    // New accent colors
-    accent1: '#D4AF37', // Gold variant (lighter than primary)
-    accent2: '#805AD5', // Purple
-    accent3: '#38B2AC', // Teal
-    accent4: '#E53E3E', // Red for alerts/notifications
-    
-    // New gradient definitions
+    accent1: '#D4AF37',
+    accent2: '#805AD5',
+    accent3: '#38B2AC',
+    accent4: '#E53E3E',
     gradients: {
       gold: 'linear-gradient(135deg, #A78800 0%, #D4AF37 100%)',
       purple: 'linear-gradient(135deg, #6B46C1 0%, #805AD5 100%)',
       teal: 'linear-gradient(135deg, #2C7A7B 0%, #38B2AC 100%)',
     },
-    
-    // New surface colors for cards and sections
     surfaces: {
       dark: {
         level1: '#1F2024',
@@ -70,21 +74,14 @@ export const ThemeProvider = ({ children }) => {
         level1: '#F5F5F5',
         level2: '#EAEAEA',
         level3: '#F9F9F9',
-      }
-    }
-  };
-
-  // Values to share via context
-  const value = {
-    darkMode,
-    toggleDarkMode,
-    colors
+      },
+    },
   };
 
   return (
-    <ThemeContext.Provider value={value}>
+    <ThemeNavigator darkMode={darkMode} toggleDarkMode={toggleDarkMode} colors={colors}>
       {children}
-    </ThemeContext.Provider>
+    </ThemeNavigator>
   );
 };
 

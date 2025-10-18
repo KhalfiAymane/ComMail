@@ -24,7 +24,7 @@ const CourrierArchived = () => {
   const borderColor = darkMode ? 'border-gray-700/20' : 'border-gray-200';
 
   // State management
-  const [userData, setUserData] = useState({ role: '', department: '', email: '' });
+  const [userData, setUserData] = useState({ role: '', department: '', email: '', id: '' });
   const [courriers, setCourriers] = useState([]);
   const [selectedCourriers, setSelectedCourriers] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
@@ -38,12 +38,27 @@ const CourrierArchived = () => {
   const [isPersonalView, setIsPersonalView] = useState(true);
   const [dateRangeFilter, setDateRangeFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [showTagsFilter, setShowTagsFilter] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [counts, setCounts] = useState({});
 
-  // Inject styles into document head
+  // Define departments from backend
+  const departments = [
+    'Présidence',
+    'Direction Générale des Services',
+    'Bureau d’Ordre',
+    'Secrétariat du Conseil',
+    'Secrétariat du Président',
+    'Ressources Humaines',
+    'Division Financière',
+    'Division Technique',
+    'Bureau d’Hygiène',
+    'Partenariat et Coopération',
+    'Informatique et Communication',
+    'Administration'
+  ];
+
+  // Inject styles
   useEffect(() => {
     const styleSheet = document.createElement('style');
     styleSheet.textContent = `
@@ -74,11 +89,16 @@ const CourrierArchived = () => {
       const profileResponse = await axios.get('http://localhost:5000/api/users/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUserData({
+      const user = {
         role: profileResponse.data.role,
         department: profileResponse.data.department,
         email: profileResponse.data.email,
-      });
+        id: profileResponse.data._id
+      };
+      setUserData(user);
+
+      // Set default view based on role
+      setIsPersonalView(user.role !== 'dgs' && user.role !== 'admin');
 
       const mailsResponse = await axios.get('http://localhost:5000/api/mails/mails-and-counts', {
         headers: { Authorization: `Bearer ${token}` },
@@ -87,7 +107,7 @@ const CourrierArchived = () => {
 
       const mappedCourriers = mailsResponse.data.courriers.map(mail => ({
         id: mail._id,
-        sender: mail.sender.department,
+        sender: mail.sender ? mail.sender.department : 'Utilisateur supprimé', // Fallback value
         subject: mail.subject,
         content: mail.content,
         dateArchived: new Date(mail.updatedAt).toLocaleString('fr-FR', {
@@ -95,7 +115,8 @@ const CourrierArchived = () => {
           month: 'long',
           year: 'numeric',
         }),
-        archivedBy: mail.archivedBy ? mail.archivedBy.email : 'Unknown',
+        archivedBy: mail.archivedBy ? mail.archivedBy.email : 'Inconnu',
+        archivedById: mail.archivedBy ? mail.archivedBy._id : null,
         originalDate: new Date(mail.createdAt).toLocaleString('fr-FR', {
           day: '2-digit',
           month: 'long',
@@ -104,10 +125,12 @@ const CourrierArchived = () => {
         read: mail.isRead,
         favorite: mail.favorite,
         priority: mail.type === 'urgent' ? 'high' : mail.type === 'officiel' ? 'medium' : 'low',
-        department: mail.sender.department,
-        tags: [], // Add tags if supported in backend
+        department: mail.sender ? mail.sender.department : 'Inconnu', // Fallback for department
+        tags: [],
         attachments: mail.attachments.length,
-        personal: mail.sender._id.toString() === profileResponse.data._id || mail.receiverDepartments.includes(profileResponse.data.department),
+        personal: mail.sender?._id.toString() === user.id || 
+                 mail.receiverDepartments.includes(user.department) ||
+                 mail.archivedBy?._id.toString() === user.id
       }));
 
       setCourriers(mappedCourriers);
@@ -166,7 +189,7 @@ const CourrierArchived = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCourriers(prev => prev.filter(c => c.id !== id));
-      fetchData(); // Refresh counts
+      fetchData();
     } catch (err) {
       console.error('Error unarchiving mail:', err);
       setError('Erreur lors du désarchivage');
@@ -186,7 +209,7 @@ const CourrierArchived = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
-      fetchData(); // Refresh counts
+      fetchData();
     } catch (err) {
       console.error('Error bulk unarchiving:', err);
       setError('Erreur lors du désarchivage en masse');
@@ -200,7 +223,7 @@ const CourrierArchived = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCourriers(prev => prev.filter(c => c.id !== id));
-      fetchData(); // Refresh counts
+      fetchData();
     } catch (err) {
       console.error('Error deleting mail:', err);
       setError('Erreur lors de la suppression');
@@ -218,7 +241,7 @@ const CourrierArchived = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
-      fetchData(); // Refresh counts
+      fetchData();
     } catch (err) {
       console.error('Error bulk deleting:', err);
       setError('Erreur lors de la suppression en masse');
@@ -231,9 +254,17 @@ const CourrierArchived = () => {
     setIsRefreshing(false);
   };
 
-  // Filter logic
+  // Filter logic (corrected for personal/centralized views)
   const filteredCourriers = courriers.filter(courrier => {
-    if (isPersonalView && !courrier.personal) return false;
+    // Personal view: only show courriers archived by the current user
+    if (isPersonalView) {
+      if (courrier.archivedById !== userData.id) return false;
+    } 
+    // Centralized view: only show courriers NOT archived by the current user
+    else {
+      if (courrier.archivedById === userData.id) return false;
+    }
+
     if (showFavoritesOnly && !courrier.favorite) return false;
     if (activeFilter !== 'all' && courrier.department !== activeFilter) return false;
     if (priorityFilter !== 'all' && courrier.priority !== priorityFilter) return false;
@@ -261,13 +292,13 @@ const CourrierArchived = () => {
     return true;
   });
 
-  // Count statistics
+  // Count statistics (adjusted for personal/centralized views)
   const totalCount = courriers.length;
-  const personalCount = courriers.filter(c => c.personal).length;
-  const centralizedCount = courriers.filter(c => !c.personal).length;
+  const personalCount = courriers.filter(c => c.archivedById === userData.id).length;
+  const centralizedCount = courriers.filter(c => c.archivedById !== userData.id).length;
   const favoriteCount = courriers.filter(c => c.favorite).length;
-  const personalFavorites = courriers.filter(c => c.personal && c.favorite).length;
-  const personalHighPriority = courriers.filter(c => c.personal && c.priority === 'high').length;
+  const personalFavorites = courriers.filter(c => c.archivedById === userData.id && c.favorite).length;
+  const personalHighPriority = courriers.filter(c => c.archivedById === userData.id && c.priority === 'high').length;
 
   // Animation variants
   const listItemVariants = {
@@ -284,12 +315,17 @@ const CourrierArchived = () => {
   // Helper functions
   const getDepartmentColor = (dept) => {
     const colors = {
+      'Présidence': 'bg-yellow-500',
+      'Direction Générale des Services': 'bg-red-500',
+      'Bureau d’Ordre': 'bg-gray-500',
+      'Secrétariat du Conseil': 'bg-blue-400',
+      'Secrétariat du Président': 'bg-yellow-400',
       'Ressources Humaines': 'bg-purple-500',
       'Division Financière': 'bg-blue-500',
       'Division Technique': 'bg-green-500',
-      'Bureau d\'Ordre': 'bg-gray-500',
-      'Direction Générale des Services': 'bg-red-500',
-      'Présidence': 'bg-yellow-500',
+      'Bureau d’Hygiène': 'bg-teal-500',
+      'Partenariat et Coopération': 'bg-orange-500',
+      'Informatique et Communication': 'bg-indigo-500',
       'Administration': 'bg-pink-500',
     };
     return colors[dept] || 'bg-gray-500';
@@ -393,32 +429,35 @@ const CourrierArchived = () => {
               <span>Dernière mise à jour: aujourd'hui</span>
             </div>
           </div>
-          <div className="mt-6 flex justify-center">
-            <div className="bg-white/10 rounded-full p-1 flex items-center">
-              <button
-                onClick={() => setIsPersonalView(true)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <User size={14} />
-                  Vue Personnelle
-                </span>
-              </button>
-              <button
-                onClick={() => setIsPersonalView(false)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  !isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Users size={14} />
-                  Vue Centralisée
-                </span>
-              </button>
+          {/* Show view toggle only for dgs and admin */}
+          {(userData.role === 'dgs' || userData.role === 'admin') && (
+            <div className="mt-6 flex justify-center">
+              <div className="bg-white/10 rounded-full p-1 flex items-center">
+                <button
+                  onClick={() => setIsPersonalView(true)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <User size={14} />
+                    Vue Personnelle
+                  </span>
+                </button>
+                <button
+                  onClick={() => setIsPersonalView(false)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    !isPersonalView ? 'bg-[#A78800] text-white' : 'text-white/80 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Users size={14} />
+                    Vue Centralisée
+                  </span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -468,7 +507,7 @@ const CourrierArchived = () => {
                         <button onClick={() => { setActiveFilter('all'); setFilterOpen(false); }} className={`px-3 py-2 text-sm w-full text-left rounded-lg ${activeFilter === 'all' ? 'bg-[#A78800]/20 text-[#A78800]' : textColor} hover:bg-[#A78800]/10 flex items-center gap-2`}>
                           <Mail size={14} /> Tous les services
                         </button>
-                        {Object.keys(getDepartmentColor()).map(dept => (
+                        {departments.map(dept => (
                           <button
                             key={dept}
                             onClick={() => { setActiveFilter(dept); setFilterOpen(false); }}
@@ -694,13 +733,13 @@ const CourrierArchived = () => {
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Archivés par vous</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && c.archivedBy === userData.email).length}
+                    {courriers.filter(c => c.archivedById === userData.id).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Archivés par d'autres</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && c.archivedBy !== userData.email).length}
+                    {courriers.filter(c => c.personal && c.archivedById !== userData.id).length}
                   </span>
                 </div>
                 <div className="mt-4 p-3 rounded-lg bg-gray-100/10 border ${borderColor}">
@@ -749,13 +788,13 @@ const CourrierArchived = () => {
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Cette semaine</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
+                    {courriers.filter(c => c.archivedById === userData.id && new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Ce mois</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => c.personal && new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
+                    {courriers.filter(c => c.archivedById === userData.id && new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -785,9 +824,9 @@ const CourrierArchived = () => {
                 <FileText size={18} className={subTextColor} />
               </div>
               <div className="space-y-3">
-                {Object.keys(getDepartmentColor()).map(dept => {
-                  const count = courriers.filter(c => c.department === dept).length;
-                  const percentage = Math.round((count / courriers.length) * 100) || 0;
+                {departments.map(dept => {
+                  const count = courriers.filter(c => c.department === dept && c.archivedById !== userData.id).length;
+                  const percentage = Math.round((count / centralizedCount) * 100) || 0;
                   return (
                     <div key={dept} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
@@ -818,13 +857,13 @@ const CourrierArchived = () => {
                 <div className="relative w-32 h-32">
                   <div className="absolute inset-0 rounded-full border-8 border-r-red-500 border-b-orange-500 border-l-green-500 border-t-gray-200/20 rotate-45"></div>
                   <div className="absolute inset-8 bg-[#1F2024] rounded-full flex items-center justify-center">
-                    <span className={`text-sm font-medium ${textColor}`}>{courriers.length}</span>
+                    <span className={`text-sm font-medium ${textColor}`}>{centralizedCount}</span>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-4">
                 {['high', 'medium', 'low'].map(priority => {
-                  const count = courriers.filter(c => c.priority === priority).length;
+                  const count = courriers.filter(c => c.priority === priority && c.archivedById !== userData.id).length;
                   return (
                     <div key={priority} className="text-center">
                       <div className={`w-3 h-3 rounded-full mx-auto ${
@@ -836,7 +875,7 @@ const CourrierArchived = () => {
                         {getPriorityLabel(priority)}
                       </div>
                       <div className={`text-xs ${subTextColor}`}>
-                        {count} ({Math.round((count / courriers.length) * 100) || 0}%)
+                        {count} ({Math.round((count / centralizedCount) * 100) || 0}%)
                       </div>
                     </div>
                   );
@@ -853,13 +892,13 @@ const CourrierArchived = () => {
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Cette semaine</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
+                    {courriers.filter(c => c.archivedById !== userData.id && new Date(c.dateArchived).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${textColor}`}>Ce mois</span>
                   <span className={`text-sm font-medium ${textColor}`}>
-                    {courriers.filter(c => new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
+                    {courriers.filter(c => c.archivedById !== userData.id && new Date(c.dateArchived).getMonth() === new Date().getMonth()).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">

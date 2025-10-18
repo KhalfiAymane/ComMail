@@ -1,4 +1,3 @@
-// backend/models/userModel.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -22,7 +21,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['user', 'admin', 'president', 'dgs', 'bo', 'sc', 'sp', 'rh', 'dfm', 'dt', 'bh', 'pc', 'ic'],
-    default: 'user', // Default to 'user' if not provided
+    default: 'user', 
   },
   permissions: [{
     type: String,

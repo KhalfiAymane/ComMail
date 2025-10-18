@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { 
   Search, Star, StarOff, Archive, Trash2, Mail, MailOpen, 
   Filter, Check, CheckSquare, Square, ChevronDown, 
-  MoreHorizontal, AlertCircle, Clock, Bookmark,
+  MoreHorizontal, AlertCircle, Clock, Bookmark, Forward,
   X, Box, RefreshCw, Eye
 } from 'lucide-react';
 import axios from 'axios';
+import NewCourrierModal from '../../components/NewCourrierModal'; // Assume this is imported
 
 const CourrierInbox = () => {
   const { darkMode } = useTheme();
@@ -24,9 +25,12 @@ const CourrierInbox = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [forwardModalOpen, setForwardModalOpen] = useState(false);
+  const [forwardCourrier, setForwardCourrier] = useState(null);
+  const [viewCourrier, setViewCourrier] = useState(null);
 
-  const isDGS = userData.role === 'dgs';
-  const isBO = userData.role === 'bo';
+  const isInbox = !window.location.pathname.includes('sent') && !window.location.pathname.includes('archives');
+  const isPrivilegedRole = ['dgs', 'admin'].includes(userData.role);
 
   // Theme-based styling
   const mainBg = darkMode ? 'bg-[#131313]' : 'bg-[#F5F5F5]';
@@ -52,7 +56,6 @@ const CourrierInbox = () => {
       const profileResponse = await axios.get('http://localhost:5000/api/users/profile', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('User profile:', profileResponse.data); // Verify department
       setUserData({
         role: profileResponse.data.role,
         department: profileResponse.data.department,
@@ -64,11 +67,9 @@ const CourrierInbox = () => {
         params: { section },
       });
   
-      console.log('Mails response for', profileResponse.data.role, ':', mailsResponse.data.courriers);
-  
       const mappedCourriers = mailsResponse.data.courriers.map(mail => ({
         id: mail._id,
-        sender: mail.sender.department,
+        sender: mail.sender ? mail.sender.department : 'Utilisateur supprimé', // Fallback value
         subject: mail.subject,
         content: mail.content,
         date: new Date(mail.createdAt).toLocaleString('fr-FR', {
@@ -81,23 +82,25 @@ const CourrierInbox = () => {
         read: mail.isRead,
         favorite: mail.favorite,
         urgent: mail.type === 'urgent',
-        department: mail.sender.department,
+        department: mail.sender ? mail.sender.department : 'Inconnu', // Fallback value
         attachments: mail.attachments.length,
+        type: mail.type,
+        receiverDepartments: mail.receiverDepartments,
       }));
   
       setCourriers(mappedCourriers);
       setLoading(false);
     } catch (err) {
-      console.error('Error fetching data:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Erreur lors du chargement des données');
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Handlers
+  // Handlers (unchanged except for new ones)
   const handleSelectAll = () => {
     setSelectAll(!selectAll);
     setSelectedCourriers(selectAll ? [] : filteredCourriers.map(c => c.id));
@@ -105,9 +108,7 @@ const CourrierInbox = () => {
 
   const handleSelect = (id) => {
     setSelectedCourriers(prev => 
-      prev.includes(id) 
-        ? prev.filter(cId => cId !== id) 
-        : [...prev, id]
+      prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]
     );
   };
 
@@ -124,7 +125,6 @@ const CourrierInbox = () => {
         c.id === id ? { ...c, read: !c.read } : c
       ));
     } catch (err) {
-      console.error('Error updating read status:', err.response?.data || err.message);
       setError('Erreur lors de la mise à jour du statut lu');
     }
   };
@@ -145,7 +145,6 @@ const CourrierInbox = () => {
       setSelectedCourriers([]);
       setSelectAll(false);
     } catch (err) {
-      console.error('Error bulk updating read status:', err.response?.data || err.message);
       setError('Erreur lors de la mise à jour en masse');
     }
   };
@@ -155,18 +154,15 @@ const CourrierInbox = () => {
       const token = localStorage.getItem('token');
       const mail = courriers.find(c => c.id === id);
       const newFavoriteStatus = !mail.favorite;
-  
       await axios.put(
         `http://localhost:5000/api/mails/${id}`,
         { favorite: newFavoriteStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-  
       setCourriers(prev => prev.map(c => 
         c.id === id ? { ...c, favorite: newFavoriteStatus } : c
       ));
     } catch (err) {
-      console.error('Error toggling favorite:', err.response?.data || err.message);
       setError('Erreur lors de la mise à jour des favoris');
     }
   };
@@ -174,15 +170,14 @@ const CourrierInbox = () => {
   const handleArchive = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.put(
+      await axios.put(
         `http://localhost:5000/api/mails/${id}/status`,
         { section: 'archives' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCourriers(prev => prev.filter(c => c.id !== id));
-      fetchData(); // Refresh data to update counts
+      fetchData();
     } catch (err) {
-      console.error('Error archiving mail:', err.response?.data || err.message);
       setError(`Erreur lors de l’archivage: ${err.response?.data?.error || err.message}`);
     }
   };
@@ -200,10 +195,9 @@ const CourrierInbox = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
-      fetchData(); // Refresh data
+      fetchData();
     } catch (err) {
-      console.error('Error bulk archiving:', err.response?.data || err.message);
-      setError('Erreur lors de l’archivage en masse: ' + (err.response?.data?.error || err.message));
+      setError('Erreur lors de l’archivage en masse');
     }
   };
 
@@ -214,10 +208,9 @@ const CourrierInbox = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCourriers(prev => prev.filter(c => c.id !== id));
-      fetchData(); // Refresh data
+      fetchData();
     } catch (err) {
-      console.error('Error deleting mail:', err.response?.data || err.message);
-      setError('Erreur lors de la suppression: ' + (err.response?.data?.error || err.message));
+      setError('Erreur lors de la suppression');
     }
   };
 
@@ -232,10 +225,9 @@ const CourrierInbox = () => {
       setCourriers(prev => prev.filter(c => !selectedCourriers.includes(c.id)));
       setSelectedCourriers([]);
       setSelectAll(false);
-      fetchData(); // Refresh data
+      fetchData();
     } catch (err) {
-      console.error('Error bulk deleting:', err.response?.data || err.message);
-      setError('Erreur lors de la suppression en masse: ' + (err.response?.data?.error || err.message));
+      setError('Erreur lors de la suppression en masse');
     }
   };
 
@@ -245,7 +237,20 @@ const CourrierInbox = () => {
     setIsRefreshing(false);
   };
 
-  // Filter logic
+  const handleForward = (courrier) => {
+    setForwardCourrier(courrier);
+    setForwardModalOpen(true);
+  };
+
+  const handleView = (courrier) => {
+    setViewCourrier(courrier);
+  };
+
+  const handleCloseView = () => {
+    setViewCourrier(null);
+  };
+
+  // Filter logic (unchanged)
   const filteredCourriers = courriers.filter(courrier => {
     if (showFavoritesOnly && !courrier.favorite) return false;
     if (activeFilter === 'unread' && courrier.read) return false;
@@ -265,12 +270,10 @@ const CourrierInbox = () => {
     return true;
   });
 
-  // Count statistics
   const totalCount = courriers.length;
   const unreadCount = courriers.filter(c => !c.read).length;
   const urgentCount = courriers.filter(c => c.urgent).length;
 
-  // Animation variants
   const listItemVariants = {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
@@ -282,7 +285,6 @@ const CourrierInbox = () => {
     animate: { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: 'linear' } }
   };
 
-  // Helper functions
   const getDepartmentColor = (dept) => {
     const colors = {
       'Ressources Humaines': 'bg-purple-500',
@@ -310,7 +312,7 @@ const CourrierInbox = () => {
 
   return (
     <div className={`p-6 ${mainBg} ${textColor} min-h-screen`}>
-      {/* Header section */}
+      {/* Header section (unchanged) */}
       <div className="mb-6 relative overflow-hidden rounded-xl shadow-xl">
         <div className="absolute inset-0 bg-gradient-to-r from-[#A78800] to-[#1F2024] animate-[gradient_15s_ease_infinite] bg-[length:200%_200%]"></div>
         <div className="absolute inset-0 opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
@@ -385,7 +387,7 @@ const CourrierInbox = () => {
 
       {/* Main container */}
       <div className={`${containerBg} rounded-xl shadow-xl overflow-hidden border ${borderColor}`}>
-        {/* Toolbar section */}
+        {/* Toolbar section (unchanged) */}
         <div className={`p-4 border-b ${borderColor} flex items-center justify-between flex-wrap gap-2`}>
           <div className="flex items-center gap-3 flex-wrap">
             <button 
@@ -409,9 +411,11 @@ const CourrierInbox = () => {
                 <button onClick={handleBulkArchive} className={`p-2 rounded-full ${hoverBg}`} title="Archiver">
                   <Archive size={18} className={subTextColor} />
                 </button>
-                <button onClick={handleBulkDelete} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer">
-                  <Trash2 size={18} className={subTextColor} />
-                </button>
+                {isPrivilegedRole && (
+                  <button onClick={handleBulkDelete} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer">
+                    <Trash2 size={18} className={subTextColor} />
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -450,7 +454,7 @@ const CourrierInbox = () => {
                           <AlertCircle size={14} /> Urgents
                         </button>
                       </div>
-                      {isDGS && (
+                      {userData.role === 'dgs' && (
                         <>
                           <div className={`h-px w-full ${borderColor}`}></div>
                           <div className="p-2">
@@ -603,7 +607,7 @@ const CourrierInbox = () => {
                 <div className={`flex flex-col items-end gap-3 ml-4 ${hoveredCourrier === courrier.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                   {hoveredCourrier === courrier.id ? (
                     <div className="flex items-center gap-2">
-                      <button onClick={() => {}} className={`p-2 rounded-full ${hoverBg}`} title="Voir les détails">
+                      <button onClick={() => handleView(courrier)} className={`p-2 rounded-full ${hoverBg}`} title="Voir les détails">
                         <Eye size={16} className={subTextColor} />
                       </button>
                       <button
@@ -613,12 +617,19 @@ const CourrierInbox = () => {
                       >
                         {courrier.read ? <Mail size={16} className={subTextColor} /> : <MailOpen size={16} className={subTextColor} />}
                       </button>
+                      {isInbox && (
+                        <button onClick={() => handleForward(courrier)} className={`p-2 rounded-full ${hoverBg}`} title="Transférer">
+                          <Forward size={16} className={subTextColor} />
+                        </button>
+                      )}
                       <button onClick={() => handleArchive(courrier.id)} className={`p-2 rounded-full ${hoverBg}`} title="Archiver">
                         <Archive size={16} className={subTextColor} />
                       </button>
-                      <button onClick={() => handleDelete(courrier.id)} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer">
-                        <Trash2 size={16} className={subTextColor} />
-                      </button>
+                      {isPrivilegedRole && (
+                        <button onClick={() => handleDelete(courrier.id)} className={`p-2 rounded-full ${hoverBg}`} title="Supprimer">
+                          <Trash2 size={16} className={subTextColor} />
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className={`text-sm ${subTextColor}`}>
@@ -631,7 +642,7 @@ const CourrierInbox = () => {
           </AnimatePresence>
         )}
 
-        {/* Pagination footer */}
+        {/* Pagination footer (unchanged) */}
         <div className={`py-3 px-4 flex items-center justify-between border-t ${borderColor}`}>
           <div className={`text-sm ${subTextColor}`}>
             Affichage de {filteredCourriers.length} sur {courriers.length} courriers
@@ -647,6 +658,125 @@ const CourrierInbox = () => {
           </div>
         </div>
       </div>
+
+      {/* Forward Modal */}
+      <NewCourrierModal
+        isOpen={forwardModalOpen}
+        onClose={(newMail) => {
+          setForwardModalOpen(false);
+          if (newMail) fetchData(); // Refresh if forwarded
+        }}
+        initialData={forwardCourrier ? {
+          type: forwardCourrier.type,
+          subject: `FWD: ${forwardCourrier.subject}`,
+          content: forwardCourrier.content,
+          receiverDepartments: [],
+          attachments: forwardCourrier.attachments ? forwardCourrier.attachments.map(() => ({})) : [], // Placeholder for attachments
+          senderRole: userData.role,
+          senderDepartment: userData.department,
+          isForward: true, // Custom prop to indicate forwarding mode
+        } : null}
+      />
+
+      {/* View Popup */}
+      <AnimatePresence>
+        {viewCourrier && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 z-50 backdrop-blur-md"
+              onClick={handleCloseView}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`
+                fixed z-50 top-[7%] left-[22%] transform -translate-x-1/2 -translate-y-1/2
+                w-[95%] max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl
+                ${darkMode ? 'bg-gradient-to-br from-[#1A1B1F] to-[#252629]' : 'bg-gradient-to-br from-white to-gray-50'}
+                shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] border ${borderColor}
+              `}
+            >
+              <div className="h-2 w-full bg-gradient-to-r from-[#A78800] to-[#D4AF37]" />
+              <div className="relative overflow-y-auto max-h-[calc(85vh-8px)] scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent">
+                <div className={`px-6 pt-6 pb-4 border-b ${borderColor} relative overflow-hidden`}>
+                  <div className="absolute top-0 right-0 w-48 h-48 opacity-5">
+                    <div className="w-full h-full bg-[#A78800] rounded-full transform translate-x-1/3 -translate-y-1/3" />
+                  </div>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className={`
+                          px-3 py-1 rounded-full text-xs font-medium
+                          ${viewCourrier.type === 'urgent' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                            viewCourrier.type === 'officiel' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                            'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}
+                        `}>
+                          {viewCourrier.type.charAt(0).toUpperCase() + viewCourrier.type.slice(1)}
+                        </span>
+                      </div>
+                      <h2 className={`text-2xl font-bold ${accentBg} bg-clip-text text-transparent`}>
+                        {viewCourrier.subject || 'No Subject'}
+                      </h2>
+                      <div className="flex items-center mt-2 text-sm">
+                        <Clock className={`mr-2 ${subTextColor}`} size={14} />
+                        <span className={subTextColor}>
+                          {viewCourrier.date}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCloseView}
+                      className={`
+                        w-9 h-9 rounded-full flex items-center justify-center
+                        ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}
+                        transition-all duration-200
+                      `}
+                    >
+                      <X size={16} className={textColor} />
+                    </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className={`text-sm font-medium ${subTextColor}`}>From:</p>
+                      <p className={`text-base ${textColor}`}>
+                        {viewCourrier.sender || 'Unknown Department'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium ${subTextColor}`}>To:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {viewCourrier.receiverDepartments?.map(dept => (
+                          <span key={dept} className={`text-base ${textColor}`}>
+                            {dept}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className={`text-base ${textColor} whitespace-pre-wrap mb-6`}>
+                    {viewCourrier.content || 'No content available'}
+                  </div>
+                  {viewCourrier.attachments > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-medium mb-3 flex items-center">
+                        <Bookmark className="mr-2 text-[#A78800]" />
+                        Attachments ({viewCourrier.attachments})
+                      </h3>
+                      <p className={`text-sm ${subTextColor}`}>Attachments available in backend</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
